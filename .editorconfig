@@ -1,0 +1,36 @@
+# EditorConfig for ErrorOr.Interceptors - Incremental Generator Analyzers
+
+root = true
+
+[*.cs]
+
+# =============================================================================
+# STANDARD ROSLYN ANALYZER RULES (RS)
+# =============================================================================
+
+dotnet_diagnostic.RS1035.severity = warning  # Do not use APIs banned for analyzers
+dotnet_diagnostic.RS1038.severity = warning  # Compiler extensions should target netstandard2.0
+
+# =============================================================================
+# ERRORPRONE.NET.STRUCTS - Struct copying detection
+# =============================================================================
+
+dotnet_diagnostic.EPS01.severity = warning   # Struct can be made readonly
+dotnet_diagnostic.EPS02.severity = warning   # Non-readonly struct used as in parameter
+dotnet_diagnostic.EPS03.severity = warning   # Non-readonly struct used as in parameter will cause defensive copy
+dotnet_diagnostic.EPS05.severity = warning   # Use in-modifier for passing large readonly struct
+dotnet_diagnostic.EPS06.severity = warning   # Suspicious struct copy
+dotnet_diagnostic.EPS07.severity = warning   # ref/in/out assignment into readonly struct field causes hidden copy
+dotnet_diagnostic.EPS08.severity = warning   # Non-readonly property can cause hidden copy
+dotnet_diagnostic.EPS09.severity = warning   # Method on readonly struct returns 'this' as writable reference
+dotnet_diagnostic.EPS10.severity = warning   # Use explicit struct layout
+dotnet_diagnostic.EPS11.severity = warning   # Struct member access on readonly variable causes hidden copy
+dotnet_diagnostic.EPS12.severity = warning   # A method on readonly struct creates hidden copy of 'this'
+
+# =============================================================================
+# ERRORPRONE.NET.COREANALYZERS - Equality implementation
+# =============================================================================
+
+dotnet_diagnostic.EPC11.severity = warning   # Suspicious equality implementation
+dotnet_diagnostic.EPC12.severity = warning   # Suspicious Equals implementation
+dotnet_diagnostic.EPC13.severity = warning   # Suspicious GetHashCode implementation

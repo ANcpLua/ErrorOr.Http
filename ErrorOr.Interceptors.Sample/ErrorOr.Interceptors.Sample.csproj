@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <!-- Enable interceptor namespace for ErrorOr interceptors -->
+        <InterceptorsNamespaces>$(InterceptorsNamespaces);ANcpLua.Interceptors.ErrorOr.Generated</InterceptorsNamespaces>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- ErrorOr library -->
+        <PackageReference Include="ErrorOr"/>
+        <!-- OpenAPI -->
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
+
+        <!-- Generator reference (project reference for development) -->
+        <ProjectReference Include="..\ErrorOr.Interceptors\ErrorOr.Interceptors.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+</Project>

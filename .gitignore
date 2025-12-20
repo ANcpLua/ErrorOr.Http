@@ -1,0 +1,35 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.cache
+*.DotSettings.user
+
+# JetBrains Rider
+.idea/
+
+# Test results
+TestResults/
+*.trx
+coverage*/
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Verify snapshots temp
+*.received.*

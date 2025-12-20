@@ -3,9 +3,7 @@
 
 # ErrorOr.Interceptors
 
-Source generator that automatically adds **ProblemDetails mapping** and **OpenAPI metadata** to Minimal API endpoints returning `ErrorOr<T>`.
-
-**Zero attributes. Zero reflection. Zero boilerplate.**
+Source generator that automatically adds **ProblemDetails** and **OpenAPI metadata** to Minimal API endpoints returning `ErrorOr<T>`.
 
 ## Install
 
@@ -13,86 +11,100 @@ Source generator that automatically adds **ProblemDetails mapping** and **OpenAP
 dotnet add package ErrorOr.Interceptors
 ```
 
-## What It Does
+## Why?
 
-Write normal Minimal API code with [ErrorOr](https://github.com/amantinband/error-or):
-
-```csharp
-app.MapGet("/users/{id}", (int id, UserService service) =>
-{
-    return service.GetUser(id);  // Returns ErrorOr<User>
-});
-```
-
-The generator intercepts this at compile time and adds:
-- `.AddEndpointFilter()` - converts `ErrorOr` errors to `ProblemDetails`
-- `.Produces<User>(200)` - OpenAPI success response
-- `.ProducesProblem(404)` - OpenAPI error responses (inferred from your code)
-
-## Examples
-
-### GET - Return a resource
+**Without this package** - mixing HTTP concerns into business logic:
 
 ```csharp
 app.MapGet("/users/{id}", (int id, UserService service) =>
 {
     if (id <= 0)
-        return Error.Validation("User.InvalidId", "ID must be positive");
+        return Results.ValidationProblem(
+            new Dictionary<string, string[]> { ["Id"] = ["Must be positive"] });
 
     var user = service.FindById(id);
     if (user is null)
-        return Error.NotFound("User.NotFound", $"User {id} not found");
+        return Results.Problem("Not found", statusCode: 404);
 
-    return user;  // Implicitly converts to ErrorOr<User>
+    return Results.Ok(user);
 });
 ```
 
-### POST - Create a resource
+**With this package** - clean separation:
 
 ```csharp
-app.MapPost("/users", (CreateUserRequest request, UserService service) =>
+// Endpoint - just calls service
+app.MapGet("/users/{id}", (int id, UserService service) => service.GetById(id));
+
+// Service - business logic only, no HTTP knowledge
+public ErrorOr<User> GetById(int id)
 {
-    if (string.IsNullOrWhiteSpace(request.Name))
-        return Error.Validation("User.NameRequired", "Name is required");
+    if (id <= 0)
+        return Error.Validation("User.InvalidId", "Must be positive");
 
-    if (service.ExistsByEmail(request.Email))
-        return Error.Conflict("User.EmailExists", "Email already registered");
+    var user = _db.Find(id);
+    if (user is null)
+        return Error.NotFound("User.NotFound", "Not found");
 
-    var user = service.Create(request);
-    return user;  // Returns 201 Created
-});
+    return user;
+}
 ```
 
-### DELETE - No content response
+The generator handles all the HTTP plumbing automatically.
+
+## Full Example
 
 ```csharp
-app.MapDelete("/users/{id}", (int id, UserService service) =>
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<UserService>();
+
+var app = builder.Build();
+
+// Clean one-liner endpoints
+app.MapGet("/users/{id}", (int id, UserService s) => s.GetById(id));
+app.MapPost("/users", (CreateUserRequest req, UserService s) => s.Create(req));
+app.MapDelete("/users/{id}", (int id, UserService s) => s.Delete(id));
+
+app.Run();
+
+// Service with business logic
+public class UserService
 {
-    if (!service.Exists(id))
-        return Error.NotFound("User.NotFound", $"User {id} not found");
+    public ErrorOr<User> GetById(int id)
+    {
+        if (id <= 0)
+            return Error.Validation("User.InvalidId", "ID must be positive");
 
-    service.Delete(id);
-    return Result.Deleted;  // Returns 204 No Content
-});
-```
+        var user = _db.Find(id);
+        return user ?? Error.NotFound("User.NotFound", $"User {id} not found");
+    }
 
-### Async handlers
+    public ErrorOr<User> Create(CreateUserRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return Error.Validation("User.NameRequired", "Name is required");
 
-```csharp
-app.MapGet("/orders/{id}", async (int id, OrderService service, CancellationToken ct) =>
-{
-    var order = await service.GetByIdAsync(id, ct);
-    if (order is null)
-        return Error.NotFound("Order.NotFound", $"Order {id} not found");
+        if (_db.ExistsByEmail(request.Email))
+            return Error.Conflict("User.EmailExists", "Email already registered");
 
-    return order;
-});
+        return _db.Insert(new User(request.Name, request.Email));
+    }
+
+    public ErrorOr<Deleted> Delete(int id)
+    {
+        if (!_db.Exists(id))
+            return Error.NotFound("User.NotFound", $"User {id} not found");
+
+        _db.Delete(id);
+        return Result.Deleted;  // Returns 204 No Content
+    }
+}
 ```
 
 ## Error Mapping
 
-| ErrorOr Type | HTTP Status | Response |
-|--------------|-------------|----------|
+| ErrorOr | HTTP | Response |
+|---------|------|----------|
 | `Error.Validation()` | 400 | `ValidationProblemDetails` |
 | `Error.Unauthorized()` | 401 | `ProblemDetails` |
 | `Error.Forbidden()` | 403 | `ProblemDetails` |
@@ -101,34 +113,24 @@ app.MapGet("/orders/{id}", async (int id, OrderService service, CancellationToke
 | `Error.Failure()` | 422 | `ProblemDetails` |
 | `Error.Unexpected()` | 500 | `ProblemDetails` |
 
+## What Gets Generated
+
+For each endpoint returning `ErrorOr<T>`, the generator adds:
+
+- `.AddEndpointFilter()` - converts errors to `ProblemDetails` at runtime
+- `.Produces<T>(200)` - OpenAPI success response
+- `.ProducesProblem(4xx)` - OpenAPI error responses (inferred from your code)
+
 ## Performance
 
-This package generates typed code at compile time. No reflection at runtime.
+Compile-time generation. No reflection at runtime.
 
-| Scenario | This Package | Reflection-based | Speedup |
-|----------|-------------|------------------|---------|
-| Success response | 7 ns | 560 ns | **80x faster** |
-| Created response | 7 ns | 617 ns | **88x faster** |
-| NoContent response | 3 ns | 15 ns | **5x faster** |
-| Error response | 25 ns | 39 ns | **1.5x faster** |
-
-<details>
-<summary>Raw benchmark data (.NET 10, Apple M4)</summary>
-
-```
-| Method                                | Mean       | Allocated |
-|-------------------------------------- |-----------:|----------:|
-| Generated: Success -> Ok<User>        |   7.114 ns |      48 B |
-| Reflection: Success -> Ok<User>       | 559.873 ns |    1528 B |
-| Generated: Success -> Created<User>   |   6.901 ns |      56 B |
-| Reflection: Success -> Created<User>  | 617.208 ns |    1520 B |
-| Generated: Deleted -> NoContent       |   2.922 ns |      24 B |
-| Reflection: Deleted -> NoContent      |  14.857 ns |      24 B |
-| Generated: MultiError -> Problem      |  25.004 ns |     192 B |
-| Reflection: MultiError -> Problem     |  38.593 ns |     176 B |
-```
-
-</details>
+| Scenario | This Package | Reflection | Speedup |
+|----------|-------------|------------|---------|
+| Success | 7 ns | 560 ns | **80x** |
+| Created | 7 ns | 617 ns | **88x** |
+| NoContent | 3 ns | 15 ns | **5x** |
+| Error | 25 ns | 39 ns | **1.5x** |
 
 ## License
 

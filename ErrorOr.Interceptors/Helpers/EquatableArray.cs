@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Immutable;
 
-namespace ANcpLua.Interceptors.ErrorOr.Generator.Helpers;
+namespace ErrorOr.Interceptors.Helpers;
 
 /// <summary>
 /// Wraps ImmutableArray for proper equality comparison in incremental generators.

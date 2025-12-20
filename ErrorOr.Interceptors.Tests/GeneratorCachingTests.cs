@@ -1,4 +1,4 @@
-using ANcpLua.Interceptors.ErrorOr.Generator.Interceptors;
+using ErrorOr.Interceptors;
 using Xunit;
 
 namespace ErrorOr.Interceptors.Tests;

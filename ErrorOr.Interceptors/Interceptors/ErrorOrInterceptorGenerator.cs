@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Threading;
-using ANcpLua.Interceptors.ErrorOr.Generator.Helpers;
+using ErrorOr.Interceptors.Helpers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace ANcpLua.Interceptors.ErrorOr.Generator.Interceptors;
+namespace ErrorOr.Interceptors;
 
 [Generator(LanguageNames.CSharp)]
 public sealed class ErrorOrInterceptorGenerator : IIncrementalGenerator

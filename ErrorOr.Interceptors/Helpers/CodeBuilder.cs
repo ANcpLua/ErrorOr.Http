@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace ANcpLua.Interceptors.ErrorOr.Generator.Helpers;
+namespace ErrorOr.Interceptors.Helpers;
 
 internal sealed class CodeBuilder
 {

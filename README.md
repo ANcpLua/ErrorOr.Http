@@ -1,4 +1,4 @@
-[![NuGet](https://img.shields.io/nuget/v/ANcpLua.Interceptors.ErrorOr.Generator?label=NuGet&color=0891B2)](https://www.nuget.org/packages/ANcpLua.Interceptors.ErrorOr.Generator/)
+[![NuGet](https://img.shields.io/nuget/v/ErrorOr.Interceptors?label=NuGet&color=0891B2)](https://www.nuget.org/packages/ErrorOr.Interceptors/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ANcpLua/ErrorOr.Interceptors/blob/main/LICENSE)
 
 [![Star this repo](https://img.shields.io/github/stars/ANcpLua/ErrorOr.Interceptors?style=social)](https://github.com/ANcpLua/ErrorOr.Interceptors/stargazers)
@@ -14,7 +14,7 @@ Roslyn source generator for [ErrorOr](https://github.com/amantinband/error-or) +
 ## Install
 
 ```bash
-dotnet add package ANcpLua.Interceptors.ErrorOr.Generator
+dotnet add package ErrorOr.Interceptors
 ```
 
 ## Usage

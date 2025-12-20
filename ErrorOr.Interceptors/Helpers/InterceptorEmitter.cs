@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace ANcpLua.Interceptors.ErrorOr.Generator.Helpers;
+namespace ErrorOr.Interceptors.Helpers;
 
 internal static class InterceptorEmitter
 {
@@ -47,7 +47,7 @@ internal static class InterceptorEmitter
             code.AppendLine();
         }
 
-        code.AppendLine("namespace ANcpLua.Interceptors.ErrorOr.Generated");
+        code.AppendLine("namespace ErrorOr.Interceptors.Generated");
         code.AppendLine("{");
         code.Indent();
         code.AppendLine("file static class ErrorOrInterceptors");

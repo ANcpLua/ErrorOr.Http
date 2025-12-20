@@ -12,7 +12,7 @@ namespace System.Runtime.CompilerServices
 }
 #pragma warning restore CS9113
 
-namespace ANcpLua.Interceptors.ErrorOr.Generated
+namespace ErrorOr.Interceptors.Generated
 {
     file static class ErrorOrInterceptors
     {

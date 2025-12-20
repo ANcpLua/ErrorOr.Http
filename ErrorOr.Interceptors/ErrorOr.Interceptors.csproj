@@ -7,14 +7,14 @@
         <ImplicitUsings>disable</ImplicitUsings>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <IsRoslynComponent>true</IsRoslynComponent>
-        <RootNamespace>ANcpLua.Interceptors.ErrorOr.Generator</RootNamespace>
+        <RootNamespace>ErrorOr.Interceptors</RootNamespace>
 
         <!-- Package metadata -->
-        <PackageId>ANcpLua.Interceptors.ErrorOr.Generator</PackageId>
+        <PackageId>ErrorOr.Interceptors</PackageId>
         <Title>ErrorOr.Interceptors - Source Generator for Minimal API ErrorOr Integration</Title>
         <Version>1.0.0</Version>
         <Authors>ANcpLua</Authors>
-        <Copyright>Copyright (c) 2024-2025 ANcpLua</Copyright>
+        <Copyright>Copyright (c) 2025 Alexander Nachtmann</Copyright>
         <Description>Source generator for ErrorOr Minimal API integration. Auto-intercepts MapGet/Post/Put/Delete/Patch returning ErrorOr&lt;T&gt; and adds endpoint filters + OpenAPI metadata. Zero attributes. Zero reflection.</Description>
         <PackageTags>erroror;minimal-api;openapi;source-generator;aot;interceptors;aspnetcore;roslyn;analyzer</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

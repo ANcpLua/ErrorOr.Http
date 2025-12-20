@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
     <!-- Auto-inject the interceptor namespace so consumers don't need to configure it manually -->
-    <InterceptorsNamespaces>$(InterceptorsNamespaces);ANcpLua.Interceptors.ErrorOr.Generated</InterceptorsNamespaces>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);ErrorOr.Interceptors.Generated</InterceptorsNamespaces>
   </PropertyGroup>
 </Project>

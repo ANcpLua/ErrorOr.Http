@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ANcpLua.Interceptors.ErrorOr.Generator.Helpers;
+namespace ErrorOr.Interceptors.Helpers;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Pipeline Data Types - Single Source of Truth

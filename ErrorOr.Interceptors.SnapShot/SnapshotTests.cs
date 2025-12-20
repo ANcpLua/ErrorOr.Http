@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
-using ANcpLua.Interceptors.ErrorOr.Generator.Interceptors;
+using ErrorOr.Interceptors;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Testing;

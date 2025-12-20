@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using ANcpLua.Interceptors.ErrorOr.Generator.Helpers;
-using ANcpLua.Interceptors.ErrorOr.Generator.Interceptors;
+using ErrorOr.Interceptors;
+using ErrorOr.Interceptors.Helpers;
 using BenchmarkDotNet.Attributes;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;

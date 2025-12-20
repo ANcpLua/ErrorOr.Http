@@ -5,7 +5,7 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <!-- Enable interceptor namespace for ErrorOr interceptors -->
-        <InterceptorsNamespaces>$(InterceptorsNamespaces);ANcpLua.Interceptors.ErrorOr.Generated</InterceptorsNamespaces>
+        <InterceptorsNamespaces>$(InterceptorsNamespaces);ErrorOr.Interceptors.Generated</InterceptorsNamespaces>
     </PropertyGroup>
 
     <ItemGroup>

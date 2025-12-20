@@ -1,15 +1,11 @@
 [![NuGet](https://img.shields.io/nuget/v/ErrorOr.Interceptors?label=NuGet&color=0891B2)](https://www.nuget.org/packages/ErrorOr.Interceptors/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ANcpLua/ErrorOr.Interceptors/blob/main/LICENSE)
 
-[![Star this repo](https://img.shields.io/github/stars/ANcpLua/ErrorOr.Interceptors?style=social)](https://github.com/ANcpLua/ErrorOr.Interceptors/stargazers)
-
-**Star if this works for you** - helps others find it.
-
 # ErrorOr.Interceptors
 
-Roslyn source generator for [ErrorOr](https://github.com/amantinband/error-or) + ASP.NET Core Minimal APIs.
+Source generator that automatically adds **ProblemDetails mapping** and **OpenAPI metadata** to Minimal API endpoints returning `ErrorOr<T>`.
 
-**Zero attributes. Zero reflection. Auto-intercepts `MapGet/Post/Put/Delete/Patch` calls returning `ErrorOr<T>`.**
+**Zero attributes. Zero reflection. Zero boilerplate.**
 
 ## Install
 
@@ -17,89 +13,123 @@ Roslyn source generator for [ErrorOr](https://github.com/amantinband/error-or) +
 dotnet add package ErrorOr.Interceptors
 ```
 
-## Usage
+## What It Does
 
-Just write normal Minimal API code:
-
-```csharp
-var app = WebApplication.Create();
-
-app.MapGet("/users/{id}", ErrorOr<User> (int id) => id switch
-{
-    <= 0 => Error.Validation("User.InvalidId", "ID must be positive"),
-    404 => Error.NotFound("User.NotFound", "User not found"),
-    _ => new User(id, $"User {id}")
-});
-
-app.MapPost("/users", ErrorOr<User> (CreateUserRequest req) =>
-    string.IsNullOrWhiteSpace(req.Name)
-        ? Error.Validation("Name.Required", "Name required")
-        : new User(1, req.Name));
-
-app.MapDelete("/users/{id}", ErrorOr<Deleted> (int id) =>
-    id <= 0 ? Error.Validation("InvalidId", "Bad ID") : Result.Deleted);
-
-app.Run();
-```
-
-The generator automatically:
-1. Intercepts each `MapGet/Post/Put/Delete/Patch` call returning `ErrorOr<T>`
-2. Adds `.AddEndpointFilter()` for runtime error-to-ProblemDetails mapping
-3. Adds `.Produces<T>()` and `.ProducesProblem()` for OpenAPI metadata
-
-## Async Support
+Write normal Minimal API code with [ErrorOr](https://github.com/amantinband/error-or):
 
 ```csharp
-app.MapGet("/users/{id}/orders", async Task<ErrorOr<List<Order>>> (int id, CancellationToken ct) =>
+app.MapGet("/users/{id}", (int id, UserService service) =>
 {
-    var orders = await db.GetOrdersAsync(id, ct);
-    return id <= 0 ? Error.Validation("Bad", "ID") : orders;
+    return service.GetUser(id);  // Returns ErrorOr<User>
 });
 ```
 
-`Task<ErrorOr<T>>` and `ValueTask<ErrorOr<T>>` supported.
+The generator intercepts this at compile time and adds:
+- `.AddEndpointFilter()` - converts `ErrorOr` errors to `ProblemDetails`
+- `.Produces<User>(200)` - OpenAPI success response
+- `.ProducesProblem(404)` - OpenAPI error responses (inferred from your code)
+
+## Examples
+
+### GET - Return a resource
+
+```csharp
+app.MapGet("/users/{id}", (int id, UserService service) =>
+{
+    if (id <= 0)
+        return Error.Validation("User.InvalidId", "ID must be positive");
+
+    var user = service.FindById(id);
+    if (user is null)
+        return Error.NotFound("User.NotFound", $"User {id} not found");
+
+    return user;  // Implicitly converts to ErrorOr<User>
+});
+```
+
+### POST - Create a resource
+
+```csharp
+app.MapPost("/users", (CreateUserRequest request, UserService service) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Name))
+        return Error.Validation("User.NameRequired", "Name is required");
+
+    if (service.ExistsByEmail(request.Email))
+        return Error.Conflict("User.EmailExists", "Email already registered");
+
+    var user = service.Create(request);
+    return user;  // Returns 201 Created
+});
+```
+
+### DELETE - No content response
+
+```csharp
+app.MapDelete("/users/{id}", (int id, UserService service) =>
+{
+    if (!service.Exists(id))
+        return Error.NotFound("User.NotFound", $"User {id} not found");
+
+    service.Delete(id);
+    return Result.Deleted;  // Returns 204 No Content
+});
+```
+
+### Async handlers
+
+```csharp
+app.MapGet("/orders/{id}", async (int id, OrderService service, CancellationToken ct) =>
+{
+    var order = await service.GetByIdAsync(id, ct);
+    if (order is null)
+        return Error.NotFound("Order.NotFound", $"Order {id} not found");
+
+    return order;
+});
+```
 
 ## Error Mapping
 
-| ErrorType | HTTP Status |
-|-----------|-------------|
-| Validation | 400 |
-| Unauthorized | 401 |
-| Forbidden | 403 |
-| NotFound | 404 |
-| Conflict | 409 |
-| Failure | 422 |
-| Unexpected | 500 |
+| ErrorOr Type | HTTP Status | Response |
+|--------------|-------------|----------|
+| `Error.Validation()` | 400 | `ValidationProblemDetails` |
+| `Error.Unauthorized()` | 401 | `ProblemDetails` |
+| `Error.Forbidden()` | 403 | `ProblemDetails` |
+| `Error.NotFound()` | 404 | `ProblemDetails` |
+| `Error.Conflict()` | 409 | `ProblemDetails` |
+| `Error.Failure()` | 422 | `ProblemDetails` |
+| `Error.Unexpected()` | 500 | `ProblemDetails` |
 
-## Benchmarks
+## Performance
 
-.NET 10, Apple M4
+This package generates typed code at compile time. No reflection at runtime.
 
-| Method | Mean | Allocated |
-|--------|------|-----------|
-| Generated: Success | 7 ns | 48 B |
-| Generated: Created | 7 ns | 56 B |
-| Generated: Deleted | 3 ns | 24 B |
-| Generated: MultiError | 25 ns | 192 B |
+| Scenario | This Package | Reflection-based | Speedup |
+|----------|-------------|------------------|---------|
+| Success response | 7 ns | 560 ns | **80x faster** |
+| Created response | 7 ns | 617 ns | **88x faster** |
+| NoContent response | 3 ns | 15 ns | **5x faster** |
+| Error response | 25 ns | 39 ns | **1.5x faster** |
 
 <details>
-<summary>Full results vs reflection</summary>
+<summary>Raw benchmark data (.NET 10, Apple M4)</summary>
 
 ```
 | Method                                | Mean       | Allocated |
 |-------------------------------------- |-----------:|----------:|
-| 'Generated: Success -> Ok<User>'      |   7.114 ns |      48 B |
-| 'Reflection: Success -> Ok<User>'     | 559.873 ns |    1528 B |
-| 'Generated: Success -> Created<User>' |   6.901 ns |      56 B |
-| 'Reflection: Success -> Created<User>'| 617.208 ns |    1520 B |
-| 'Generated: Deleted -> NoContent'     |   2.922 ns |      24 B |
-| 'Reflection: Deleted -> NoContent'    |  14.857 ns |      24 B |
-| 'Generated: MultiError -> Problem'    |  25.004 ns |     192 B |
-| 'Reflection: MultiError -> Problem'   |  38.593 ns |     176 B |
+| Generated: Success -> Ok<User>        |   7.114 ns |      48 B |
+| Reflection: Success -> Ok<User>       | 559.873 ns |    1528 B |
+| Generated: Success -> Created<User>   |   6.901 ns |      56 B |
+| Reflection: Success -> Created<User>  | 617.208 ns |    1520 B |
+| Generated: Deleted -> NoContent       |   2.922 ns |      24 B |
+| Reflection: Deleted -> NoContent      |  14.857 ns |      24 B |
+| Generated: MultiError -> Problem      |  25.004 ns |     192 B |
+| Reflection: MultiError -> Problem     |  38.593 ns |     176 B |
 ```
 
 </details>
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+[MIT](LICENSE)

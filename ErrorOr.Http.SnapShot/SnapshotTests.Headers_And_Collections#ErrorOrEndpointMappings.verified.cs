@@ -40,14 +40,14 @@ namespace ErrorOr.Http.Generated
         private static async Task Invoke_Ep0(HttpContext ctx)
         {
             string? p0;
-u             if (!TryGetQueryValue(ctx, "region", out var p0Raw))
+            if (!ctx.Request.Headers.TryGetValue("region", out var p0Raw) || p0Raw.Count == 0)
             {
                 await TypedResults.BadRequest().ExecuteAsync(ctx);
                 return;
             }
             else
             {
-                p0 = p0Raw;
+                p0 = p0Raw.ToString();
             }
             var p1RawList = ctx.Request.Query["ids"];
             var p1List = new global::System.Collections.Generic.List<int>();
@@ -71,7 +71,7 @@ u             if (!TryGetQueryValue(ctx, "region", out var p0Raw))
                 if (!string.IsNullOrEmpty(item)) p2List.Add(item!);
             }
             var p2 = p2List.ToArray();
-            var result = global::Endpoints.GetTags(p0!, p1!, p2!);
+            var result = global::Endpoints.GetTags(p0, p1!, p2!);
             var response = result.Match<global::Microsoft.AspNetCore.Http.IResult>(
                 value => TypedResults.Ok(value),
                 errors => ToProblem(errors));

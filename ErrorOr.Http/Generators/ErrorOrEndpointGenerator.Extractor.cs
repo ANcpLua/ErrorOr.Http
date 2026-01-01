@@ -300,9 +300,9 @@ public sealed partial class ErrorOrEndpointGenerator
         if (set.Count == 0)
             return EquatableArray<int>.Empty;
 
-        var list = set.ToList();
-        list.Sort();
-        return new EquatableArray<int>([.. list]);
+        var array = set.ToArray();
+        Array.Sort(array);
+        return new EquatableArray<int>([.. array]);
     }
 
     #endregion
@@ -531,9 +531,9 @@ public sealed partial class ErrorOrEndpointGenerator
             return true;
 
         // 2. String match (Fallback for tests/incomplete compilations)
-        var shortName = attributeName.Substring(attributeName.LastIndexOf('.') + 1);
+        var shortName = attributeName[(attributeName.LastIndexOf('.') + 1)..];
         var shortNameWithoutAttr = shortName.EndsWith("Attribute")
-            ? shortName.Substring(0, shortName.Length - "Attribute".Length)
+            ? shortName[..^"Attribute".Length]
             : shortName;
 
         return parameter.GetAttributes().Any(attr =>
@@ -543,13 +543,12 @@ public sealed partial class ErrorOrEndpointGenerator
 
             // Normalize: remove global:: prefix
             if (display.StartsWith("global::"))
-                display = display.Substring(8);
+                display = display[8..];
 
-            if (display == attributeName) return true;
-            if (display.EndsWith($".{shortName}")) return true;
-            if (display == shortName) return true;
-            if (display == shortNameWithoutAttr) return true;
-            return false;
+            return display == attributeName ||
+                   display.EndsWith($".{shortName}") ||
+                   display == shortName ||
+                   display == shortNameWithoutAttr;
         });
     }
 
@@ -579,9 +578,9 @@ public sealed partial class ErrorOrEndpointGenerator
         if (attr is null) return null;
 
         var namedValue = attr.NamedArguments
-            .Where(n => n.Key == "Name")
-            .Select(n => n.Value.Value as string)
-            .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+            .Where(static n => n.Key == "Name")
+            .Select(static n => n.Value.Value as string)
+            .FirstOrDefault(static v => !string.IsNullOrWhiteSpace(v));
 
         if (namedValue is not null) return namedValue;
 
@@ -728,15 +727,6 @@ public sealed partial class ErrorOrEndpointGenerator
 
         return EmitParameterError(in meta, method, diagnostics,
             "[FromQuery] only supports primitives or collections of primitives (AOT limitation)");
-    }
-
-    private static ParameterClassificationResult EmitRoutePrimitiveError(
-        in ParameterMeta meta,
-        IMethodSymbol method,
-        ImmutableArray<EndpointDiagnostic>.Builder diagnostics)
-    {
-        return EmitParameterError(in meta, method, diagnostics,
-            "route primitive parameters must be declared in the route pattern or use [FromQuery]");
     }
 
     private static ParameterClassificationResult EmitParameterError(

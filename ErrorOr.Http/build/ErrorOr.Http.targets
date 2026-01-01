@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup>
+    <ErrorOrInstallJsonContext Condition="'$(ErrorOrInstallJsonContext)' == ''">false</ErrorOrInstallJsonContext>
+    <ErrorOrSuggestedContextPath>$(BaseIntermediateOutputPath)Generated\ErrorOr.Http\ErrorOr.Http.Generators.ErrorOrEndpointGenerator\ErrorOrJsonContext.suggested.cs</ErrorOrSuggestedContextPath>
+    <ErrorOrJsonContextDestination>$(MSBuildProjectDirectory)\ErrorOrJsonContext.cs</ErrorOrJsonContextDestination>
+  </PropertyGroup>
+
+  <Target Name="ErrorOr_InstallJsonContext"
+          AfterTargets="Build"
+          Condition="'$(ErrorOrInstallJsonContext)' == 'true' AND !Exists('$(ErrorOrJsonContextDestination)')">
+
+    <PropertyGroup>
+      <ErrorOrJsonContextContent>$([System.IO.File]::ReadAllText('$(ErrorOrSuggestedContextPath)'))</ErrorOrJsonContextContent>
+      <ErrorOrJsonContextContent>$(ErrorOrJsonContextContent.Replace('#if ERROROR_JSON // Remove this line when copying to your project', ''))</ErrorOrJsonContextContent>
+      <ErrorOrJsonContextContent>$(ErrorOrJsonContextContent.Replace('#endif // Remove this line when copying to your project', ''))</ErrorOrJsonContextContent>
+    </PropertyGroup>
+
+    <WriteLinesToFile File="$(ErrorOrJsonContextDestination)"
+                      Lines="$(ErrorOrJsonContextContent)"
+                      Overwrite="true"
+                      Condition="Exists('$(ErrorOrSuggestedContextPath)')"/>
+
+    <Message Importance="High"
+             Text="ErrorOr.Http: Created ErrorOrJsonContext.cs. Rebuild to enable AOT serialization."
+             Condition="Exists('$(ErrorOrSuggestedContextPath)')"/>
+
+    <Warning Text="ErrorOr.Http: Build once first, then run with -p:ErrorOrInstallJsonContext=true"
+             Condition="!Exists('$(ErrorOrSuggestedContextPath)')"/>
+  </Target>
+
+  <Target Name="ErrorOr_WarnMissingJsonContext"
+          BeforeTargets="PrepareForPublish"
+          Condition="('$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true') AND !Exists('$(ErrorOrJsonContextDestination)')">
+
+    <Warning Code="EOGEN001"
+             Text="NativeAOT is enabled but no ErrorOrJsonContext.cs found. Run 'dotnet build -p:ErrorOrInstallJsonContext=true' to generate it."/>
+  </Target>
+
+</Project>

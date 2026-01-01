@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing"/>
+    <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="xunit.v3"/>
+    <PackageReference Include="AwesomeAssertions"/>
+    <PackageReference Include="ANcpLua.Roslyn.Utilities.Testing"/>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing"/>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces"/>
+    <!-- Override vulnerable transitive from Workspaces -->
+    <PackageReference Include="System.Formats.Asn1"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ErrorOr.Http.Sample\ErrorOr.Http.Sample.csproj"/>
+    <ProjectReference Include="..\ErrorOr.Http\ErrorOr.Http.csproj"/>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,75 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <RootNamespace>ErrorOr.Http</RootNamespace>
+    <PublishAot>true</PublishAot>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- Package metadata -->
+    <PackageId>ErrorOr.Http</PackageId>
+    <Title>ErrorOr.Http - Source Generator for ErrorOr Minimal APIs</Title>
+    <Version>1.0.0</Version>
+    <Authors>ANcpLua</Authors>
+    <Copyright>Copyright (c) 2025 Alexander Nachtmann</Copyright>
+    <Description>Source generator for ErrorOr Minimal API integration. Generates endpoint mappings from [ErrorOrEndpoint] attributes and adds OpenAPI metadata + ProblemDetails handling. AOT-safe, no interceptors.</Description>
+    <PackageTags>erroror;minimal-api;openapi;source-generator;aot;aspnetcore;roslyn;analyzer;endpoints;attributes</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ANcpLua/ErrorOr.Http</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>https://github.com/ANcpLua/ErrorOr.Http/releases</PackageReleaseNotes>
+    <RepositoryUrl>https://github.com/ANcpLua/ErrorOr.Http</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- Generator packaging -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <IsPackable>true</IsPackable>
+    <NoWarn>$(NoWarn);NU5128;RS2008</NoWarn>
+    <!-- Demote ErrorProne analyzer errors to warnings for incremental fixes -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);EPS01;EPS02;EPS03;EPS05;EPS06;EPS07;EPS08;EPS09;EPS10;EPS11;EPS12</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ErrorOr" PrivateAssets="all"/>
+    <PackageReference Include="Microsoft.Bcl.HashCode"/>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all"/>
+    <PackageReference Include="PolySharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <!-- Incremental generator analyzers -->
+    <PackageReference Include="ErrorProne.NET.CoreAnalyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="ErrorProne.NET.Structs">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Roslynator.CodeAnalysis.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- Pack as analyzer -->
+  <ItemGroup>
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+  </ItemGroup>
+
+  <!-- Pack README -->
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" Visible="false"/>
+  </ItemGroup>
+
+  <!-- Pack MSBuild targets (auto-imported by consuming projects) -->
+  <ItemGroup>
+    <None Include="build\ErrorOr.Http.targets" Pack="true" PackagePath="build\" Visible="false"/>
+  </ItemGroup>
+</Project>

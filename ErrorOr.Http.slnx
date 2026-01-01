@@ -1,0 +1,11 @@
+<Solution>
+    <Configurations>
+        <Platform Name="Any CPU"/>
+        <Platform Name="x64"/>
+        <Platform Name="x86"/>
+    </Configurations>
+    <Project Path="ErrorOr.Http.Sample/ErrorOr.Http.Sample.csproj"/>
+    <Project Path="ErrorOr.Http.SnapShot/ErrorOr.Http.SnapShot.csproj"/>
+    <Project Path="ErrorOr.Http.Tests/ErrorOr.Http.Tests.csproj"/>
+    <Project Path="ErrorOr.Http/ErrorOr.Http.csproj"/>
+</Solution>

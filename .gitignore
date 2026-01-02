@@ -33,3 +33,6 @@ Thumbs.db
 
 # Verify snapshots temp
 *.received.*
+
+# Git worktrees
+.worktrees/

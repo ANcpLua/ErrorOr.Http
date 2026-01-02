@@ -29,7 +29,6 @@
     <PackageReference Include="Verify.SourceGenerators"/>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing"/>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces"/>
-    <PackageReference Include="System.Formats.Asn1"/>
   </ItemGroup>
 
   <ItemGroup>

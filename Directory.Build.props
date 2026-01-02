@@ -23,6 +23,44 @@
     <_IsConsumerProject Condition="'$(_IsErrorOrGenerator)' != 'true' AND '$(_IsTestProject)' != 'true' AND '$(_IsSnapshotProject)' != 'true'">true</_IsConsumerProject>
   </PropertyGroup>
 
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       Professional Package Quality Settings
+       Applied to ALL projects in the solution for consistency
+       ═══════════════════════════════════════════════════════════════════════════ -->
+  <PropertyGroup>
+    <!-- Code Quality -->
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Deterministic builds for reproducibility -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Generate XML documentation for IntelliSense -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- Suppress common XML doc warnings for internal/private APIs -->
+    <NoWarn>$(NoWarn);CS1591;CS1570</NoWarn>
+  </PropertyGroup>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       Package Validation (ErrorOr.Http generator only)
+       Ensures API compatibility across versions and platforms
+       ═══════════════════════════════════════════════════════════════════════════ -->
+  <PropertyGroup Condition="'$(_IsErrorOrGenerator)' == 'true'">
+    <!-- Enable package validation on pack -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+
+    <!-- Strict API compatibility checks -->
+    <ApiCompatEnableRuleCannotChangeParameterName>true</ApiCompatEnableRuleCannotChangeParameterName>
+    <ApiCompatEnableRuleAttributesMustMatch>true</ApiCompatEnableRuleAttributesMustMatch>
+
+    <!-- Suppress analyzer warnings that require significant refactoring -->
+    <!-- TODO: Fix these incrementally in future PRs -->
+    <NoWarn>$(NoWarn);CA1310;IDE0011;IDE0055</NoWarn>
+  </PropertyGroup>
+
   <!-- Auto-inject analyzer for consumer projects (development-time project reference) -->
   <ItemGroup Condition="'$(_IsConsumerProject)' == 'true'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)ErrorOr.Http\ErrorOr.Http.csproj"

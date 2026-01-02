@@ -24,8 +24,6 @@
     <PackageReference Include="ANcpLua.Roslyn.Utilities.Testing"/>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing"/>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces"/>
-    <!-- Override vulnerable transitive from Workspaces -->
-    <PackageReference Include="System.Formats.Asn1"/>
   </ItemGroup>
 
   <ItemGroup>

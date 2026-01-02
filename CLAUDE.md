@@ -76,11 +76,11 @@ All generated endpoints automatically return `401 Unauthorized` or `403 Forbidde
 - ✅ OpenAPI metadata generation
 - ✅ **Implicit Query**: Primitives not in route default to Query (no attribute needed)
 - ✅ **Brutal Safety**: Ambiguous parameters trigger compile errors (no runtime DI crashes)
+- ✅ `[AsParameters]` recursive parameter binding
+- ✅ Form binding (`[FromForm]` primitives and DTOs, `IFormFile`, `IFormFileCollection`)
 
 **Not Supported (v2.0 Roadmap):**
 
-- ❌ `[AsParameters]` recursion
-- ❌ Form binding (`[FromForm]`, `IFormFile`)
 - ❌ Custom binding (`TryParse`, `BindAsync`, `IBindableFromHttpContext<T>`)
 - ❌ Stream/PipeReader body binding
 
@@ -94,8 +94,8 @@ All generated endpoints automatically return `401 Unauthorized` or `403 Forbidde
 | **DONE** | Special types detection      | ✅ Completed    | -         | -           |
 | **DONE** | Array/collection binding     | ✅ Completed    | -         | -           |
 | **DONE** | Implicit Query Binding       | ✅ Completed    | -         | -           |
-| 4        | AsParameters recursion       | 📝 Documented   | 60 min    | Priority 0  |
-| 5        | Form binding + antiforgery   | 📝 Documented   | 90 min    | -           |
+| **DONE** | AsParameters recursion       | ✅ Completed    | -         | -           |
+| **DONE** | Form binding + antiforgery   | ✅ Completed    | -         | -           |
 | 6        | SSE / Streaming Support      | 💡 Researching  | 60 min    | -           |
 
 ---
@@ -675,8 +675,8 @@ public static ErrorOr<User> GetUser(int id) => id switch
 
 ### v2.0 (Planned)
 
-- [ ] **Priority 4:** AsParameters recursion
-- [ ] **Priority 5:** Form binding + antiforgery
+- [x] **Priority 4:** AsParameters recursion
+- [x] **Priority 5:** Form binding + antiforgery
 - [ ] **Priority 6:** SSE / Streaming Support
 
 ---

@@ -112,6 +112,7 @@ crash.
 | **Query**          | `[FromQuery]`                | `?search=abc`        |
 | **Header**         | `[FromHeader]`               | `X-Api-Version: 2`   |
 | **Body**           | `[FromBody]`                 | JSON request body    |
+| **Form**           | `[FromForm]`                 | Form data            |
 | **Services**       | `[FromServices]`             | DI container         |
 | **Keyed Services** | `[FromKeyedServices("key")]` | DI with key          |
 
@@ -119,17 +120,17 @@ crash.
 
 ### Supported Types (v1.0)
 
-✅ **Primitives:** `int`, `string`, `Guid`, `DateTime`, etc.  
-✅ **Nullables:** `int?`, `string?`  
-✅ **Arrays:** `int[]`, `string[]` (from query: `?ids=1&ids=2`)  
-✅ **DTOs:** Complex types from JSON body  
+✅ **Primitives:** `int`, `string`, `Guid`, `DateTime`, etc.
+✅ **Nullables:** `int?`, `string?`
+✅ **Arrays:** `int[]`, `string[]` (from query: `?ids=1&ids=2`)
+✅ **DTOs:** Complex types from JSON body
 ✅ **Special:** `HttpContext`, `CancellationToken`
+✅ **Forms:** `IFormFile`, `IFormFileCollection`, `[FromForm]` primitives and DTOs
 
 ⚠️ **Coming in v2.0:**
 
 - Custom types with `TryParse`/`BindAsync`
 - `[AsParameters]` for grouped parameters
-- Form uploads (`IFormFile`, `[FromForm]`)
 - Stream/PipeReader body binding
 
 ---
@@ -241,6 +242,47 @@ public static ErrorOr<string> GetData(
 
 ---
 
+### Form Binding
+
+Upload files and bind form data with full AOT support:
+
+```csharp
+// Primitives and files bind automatically
+[ErrorOrEndpoint("POST", "/upload")]
+public static ErrorOr<Created> Upload(
+    [FromForm] string title,
+    [FromForm] int version,
+    IFormFile document)  // Auto-detected, no attribute needed
+{
+    // Process upload...
+    return Result.Created;
+}
+
+// DTOs with constructor binding
+public record UploadRequest(string Title, int Version);
+
+[ErrorOrEndpoint("POST", "/submit")]
+public static ErrorOr<Success> Submit(
+    [FromForm] UploadRequest request,
+    IFormFile? attachment)  // Optional file
+{
+    return Result.Success;
+}
+```
+
+**Supported form binding:**
+- `[FromForm]` primitives (string, int, Guid, etc.)
+- `[FromForm]` DTOs with constructor parameters
+- `IFormFile` - single file (auto-detected)
+- `IFormFileCollection` - multiple files (auto-detected)
+
+**Compile-time safety:**
+- `EOE006`: Mixing `[FromBody]` and `[FromForm]` is an error
+- `EOE007`: Multiple `[FromForm]` DTO parameters not allowed
+- `EOE008`: Unsupported DTO shapes are rejected
+
+---
+
 ### Obsolete Endpoints
 
 ```csharp
@@ -346,11 +388,10 @@ fetch('/api/users/1')
 
 ### v2.0 (Planned)
 
-🚧 Custom binding (`TryParse`, `BindAsync`)  
-🚧 `[AsParameters]` for grouped parameters  
-🚧 Form uploads (`IFormFile`, `[FromForm]`)  
-🚧 XML documentation → OpenAPI descriptions  
-🚧 Data annotation validation  
+🚧 Custom binding (`TryParse`, `BindAsync`)
+🚧 `[AsParameters]` for grouped parameters
+🚧 XML documentation → OpenAPI descriptions
+🚧 Data annotation validation
 🚧 Stream/PipeReader body binding
 
 ---

@@ -1,8 +1,5 @@
-using System.Collections.Generic;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Json;
-using System.Threading.Tasks;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
@@ -18,135 +15,85 @@ public class ErrorOrEndpointTests : IClassFixture<WebApplicationFactory<Program>
         _client = factory.CreateClient();
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // GET /users/{id} - Success Paths
-    // ═══════════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task GetUser_WhenValidId_ReturnsOk()
+    public async Task GetAll_ReturnsOkWithTodos()
     {
-        var response = await _client.GetAsync("/users/1");
+        var response = await _client.GetAsync("/");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var user = await response.Content.ReadFromJsonAsync<UserDto>();
-        user.Should().NotBeNull();
-        user.Id.Should().Be(1);
+        var todos = await response.Content.ReadFromJsonAsync<TodoDto[]>();
+        todos.Should().NotBeNull();
+        todos.Should().HaveCountGreaterThan(0);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // GET /users/{id} - Error Paths
-    // ═══════════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task GetUser_WhenNotFoundId_Returns404()
+    public async Task GetById_WhenValidId_ReturnsOk()
     {
-        var response = await _client.GetAsync("/users/404");
+        var response = await _client.GetAsync("/1");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var todo = await response.Content.ReadFromJsonAsync<TodoDto>();
+        todo.Should().NotBeNull();
+        todo!.Id.Should().Be(1);
+    }
+
+
+    [Fact]
+    public async Task GetById_WhenNotFoundId_Returns404()
+    {
+        var response = await _client.GetAsync("/999");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    [Fact]
-    public async Task GetUser_WhenInvalidId_ReturnsValidationProblem()
-    {
-        var response = await _client.GetAsync("/users/-1");
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // POST /users - Success Paths
-    // ═══════════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task CreateUser_WhenValidRequest_ReturnsCreated()
+    public async Task Create_WhenValidRequest_ReturnsCreated()
     {
-        // POST endpoints return 201 Created with the created resource
-        var request = new { Name = "Test User", Email = "test@example.com" };
+        var request = new { Title = "New Todo" };
 
-        var response = await _client.PostAsJsonAsync("/users", request);
+        var response = await _client.PostAsJsonAsync("/", request);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        var user = await response.Content.ReadFromJsonAsync<UserDto>();
-        user.Should().NotBeNull();
-        user.Name.Should().Be("Test User");
-        user.Email.Should().Be("test@example.com");
+        var todo = await response.Content.ReadFromJsonAsync<TodoDto>();
+        todo.Should().NotBeNull();
+        todo!.Title.Should().Be("New Todo");
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // POST /users - Error Paths
-    // ═══════════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task CreateUser_WhenMissingName_ReturnsValidationProblem()
+    public async Task Create_WhenMissingTitle_ReturnsValidationProblem()
     {
-        var request = new { Name = "", Email = "test@example.com" };
+        var request = new { Title = "" };
 
-        var response = await _client.PostAsJsonAsync("/users", request);
+        var response = await _client.PostAsJsonAsync("/", request);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
-    [Fact]
-    public async Task CreateUser_WhenEmailConflict_ReturnsConflict()
-    {
-        var request = new { Name = "Test", Email = "exists@example.com" };
-
-        var response = await _client.PostAsJsonAsync("/users", request);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // DELETE /users/{id} - Success Paths
-    // ═══════════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task DeleteUser_WhenValidId_ReturnsNoContent()
+    public async Task Delete_WhenValidId_ReturnsNoContent()
     {
-        var response = await _client.DeleteAsync("/users/1");
+        var response = await _client.DeleteAsync("/1");
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // DELETE /users/{id} - Error Paths
-    // ═══════════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task DeleteUser_WhenNotFoundId_Returns404()
+    public async Task Delete_WhenNotFoundId_Returns404()
     {
-        var response = await _client.DeleteAsync("/users/404");
+        var response = await _client.DeleteAsync("/999");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // GET /users/{id}/orders - Async Endpoints
-    // ═══════════════════════════════════════════════════════════════════════════════
 
-    [Fact]
-    public async Task GetUserOrders_WhenValidId_ReturnsOrders()
-    {
-        var response = await _client.GetAsync("/users/1/orders");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var orders = await response.Content.ReadFromJsonAsync<List<OrderDto>>();
-        orders.Should().NotBeNull();
-        orders.Should().HaveCountGreaterThan(0);
-        orders[0].Id.Should().BePositive();
-        orders[0].UserId.Should().Be(1);
-        orders[0].Total.Should().BePositive();
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // DTOs
-    // ═══════════════════════════════════════════════════════════════════════════════
-
-    private record UserDto(int Id, string Name, string Email);
-
-    private record OrderDto(int Id, int UserId, decimal Total);
+    private record TodoDto(int Id, string? Title, DateOnly? DueBy = null, bool IsComplete = false);
 }

@@ -14,66 +14,34 @@ namespace ErrorOr.Http.Generated
     {
         public static void MapErrorOrEndpoints(this IEndpointRouteBuilder app)
         {
-            app.MapMethods(@"/tags", new[] { "GET" }, (RequestDelegate)Invoke_Ep0)
-            .WithMetadata(new global::Microsoft.AspNetCore.Routing.EndpointNameAttribute("Endpoints_GetTags"))
-            .WithMetadata(new global::Microsoft.AspNetCore.Http.TagsAttribute(""))
-            .WithMetadata(new global::Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute(typeof(string), 200))
+            app.MapMethods(@"/upload", new[] { "POST" }, (RequestDelegate)Invoke_Ep0)
+            .WithMetadata(new global::Microsoft.AspNetCore.Routing.EndpointNameAttribute("Handlers_Upload"))
+            .WithMetadata(new global::Microsoft.AspNetCore.Http.TagsAttribute("Handlers"))
+            .WithMetadata(new global::Microsoft.AspNetCore.Http.Metadata.AcceptsMetadata(new[] { "multipart/form-data" }))
+            .WithMetadata(new global::Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute(204))
             ;
 
         }
 
-        /// <summary>
-        /// Configures JSON serialization for ErrorOr endpoint DTOs.
-        /// For NativeAOT, see the generated ErrorOrJsonContext.suggested.cs file.
-        /// </summary>
-        public static IServiceCollection AddErrorOrEndpointJson<TContext>(this IServiceCollection services)
-            where TContext : System.Text.Json.Serialization.JsonSerializerContext, new()
-        {
-            var context = new TContext();
-            services.ConfigureHttpJsonOptions(options =>
-            {
-                options.SerializerOptions.TypeInfoResolverChain.Insert(0, context);
-            });
-            return services;
-        }
-
         private static async Task Invoke_Ep0(HttpContext ctx)
         {
-            string? p0;
-            if (!ctx.Request.Headers.TryGetValue("region", out var p0Raw) || p0Raw.Count == 0)
+            if (!ctx.Request.HasFormContentType)
             {
-                await TypedResults.BadRequest().ExecuteAsync(ctx);
+                ctx.Response.StatusCode = 400;
                 return;
             }
-            else
+
+            var form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+
+            var p0 = form.Files.GetFile("document");
+            if (p0 is null)
             {
-                p0 = p0Raw.ToString();
+                ctx.Response.StatusCode = 400;
+                return;
             }
-            var p1RawList = ctx.Request.Query["ids"];
-            var p1List = new global::System.Collections.Generic.List<int>();
-            foreach (var item in p1RawList)
-            {
-                if (int.TryParse(item, out var parsedItem))
-                {
-                    p1List.Add(parsedItem);
-                }
-                else if (!string.IsNullOrEmpty(item))
-                {
-                    await TypedResults.BadRequest().ExecuteAsync(ctx);
-                    return;
-                }
-            }
-            var p1 = p1List;
-            var p2RawList = ctx.Request.Query["categories"];
-            var p2List = new global::System.Collections.Generic.List<string>();
-            foreach (var item in p2RawList)
-            {
-                if (!string.IsNullOrEmpty(item)) p2List.Add(item!);
-            }
-            var p2 = p2List.ToArray();
-            var result = global::Endpoints.GetTags(p0, p1!, p2!);
+            var result = global::Handlers.Upload(p0);
             var response = result.Match<global::Microsoft.AspNetCore.Http.IResult>(
-                value => TypedResults.Ok(value),
+                _ => TypedResults.NoContent(),
                 errors => ToProblem(errors));
             await response.ExecuteAsync(ctx);
         }

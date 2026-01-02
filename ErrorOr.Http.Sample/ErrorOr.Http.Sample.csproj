@@ -14,10 +14,7 @@
     <!-- OpenAPI -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
 
-    <!-- Generator reference (project reference for development) -->
-    <ProjectReference Include="..\ErrorOr.Http\ErrorOr.Http.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false"/>
+    <!-- Generator comes from Directory.Build.props -->
   </ItemGroup>
 
 </Project>

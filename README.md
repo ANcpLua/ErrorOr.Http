@@ -271,12 +271,14 @@ public static ErrorOr<Success> Submit(
 ```
 
 **Supported form binding:**
+
 - `[FromForm]` primitives (string, int, Guid, etc.)
 - `[FromForm]` DTOs with constructor parameters
 - `IFormFile` - single file (auto-detected)
 - `IFormFileCollection` - multiple files (auto-detected)
 
 **Compile-time safety:**
+
 - `EOE006`: Mixing `[FromBody]` and `[FromForm]` is an error
 - `EOE007`: Multiple `[FromForm]` DTO parameters not allowed
 - `EOE008`: Unsupported DTO shapes are rejected

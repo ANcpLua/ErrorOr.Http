@@ -3,8 +3,6 @@ using Microsoft.CodeAnalysis;
 
 namespace ErrorOr.Http.Generators;
 
-#region Endpoint Types
-
 internal enum EndpointParameterSource
 {
     Route,
@@ -16,9 +14,37 @@ internal enum EndpointParameterSource
     AsParameters,
     HttpContext,
     CancellationToken,
-    Form,       // [FromForm] primitive or DTO
-    FormFile,   // IFormFile
-    FormFiles   // IFormFileCollection
+    Form,
+    FormFile,
+    FormFiles,
+    FormCollection,
+    Stream,
+    PipeReader
+}
+
+/// <summary>
+///     Represents the custom binding method detected on a parameter type.
+///     Used for types with static TryParse, BindAsync, or IBindableFromHttpContext implementation.
+/// </summary>
+internal enum CustomBindingMethod
+{
+    /// <summary>No custom binding method detected.</summary>
+    None,
+
+    /// <summary>static bool TryParse(string?, out T)</summary>
+    TryParse,
+
+    /// <summary>static bool TryParse(string?, IFormatProvider?, out T)</summary>
+    TryParseWithFormat,
+
+    /// <summary>static ValueTask&lt;T?&gt; BindAsync(HttpContext)</summary>
+    BindAsync,
+
+    /// <summary>static ValueTask&lt;T?&gt; BindAsync(HttpContext, ParameterInfo)</summary>
+    BindAsyncWithParam,
+
+    /// <summary>IBindableFromHttpContext&lt;T&gt; interface implementation</summary>
+    Bindable
 }
 
 internal readonly record struct EndpointParameter(
@@ -30,7 +56,8 @@ internal readonly record struct EndpointParameter(
     bool IsNonNullableValueType,
     bool IsCollection,
     string? CollectionItemTypeFqn,
-    EquatableArray<EndpointParameter> Children);
+    EquatableArray<EndpointParameter> Children,
+    CustomBindingMethod CustomBinding = CustomBindingMethod.None);
 
 internal readonly record struct EndpointDescriptor(
     string HttpMethod,
@@ -43,7 +70,10 @@ internal readonly record struct EndpointDescriptor(
     string? ObsoleteMessage,
     bool IsObsoleteError,
     EquatableArray<EndpointParameter> HandlerParameters,
-    EquatableArray<int> InferredErrorTypes);
+    EquatableArray<int> InferredErrorTypes,
+    bool IsSse = false,
+    string? SseItemTypeFqn = null,
+    bool UsesSseItem = false);
 
 internal readonly record struct EndpointData(
     EquatableArray<EndpointDescriptor> Descriptors,
@@ -54,10 +84,6 @@ internal readonly record struct EndpointData(
         get => new(EquatableArray<EndpointDescriptor>.Empty, EquatableArray<EndpointDiagnostic>.Empty);
     }
 }
-
-#endregion
-
-#region Parameter Meta
 
 internal readonly record struct ParameterMeta(
     int Index,
@@ -86,7 +112,11 @@ internal readonly record struct ParameterMeta(
     bool HasFromForm,
     string FormName,
     bool IsFormFile,
-    bool IsFormFileCollection);
+    bool IsFormFileCollection,
+    bool IsFormCollection,
+    bool IsStream,
+    bool IsPipeReader,
+    CustomBindingMethod CustomBinding);
 
 internal enum RoutePrimitiveKind
 {
@@ -110,5 +140,3 @@ internal enum RoutePrimitiveKind
     TimeOnly,
     TimeSpan
 }
-
-#endregion

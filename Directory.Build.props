@@ -1,0 +1,35 @@
+<Project>
+
+  <!--
+    This file auto-injects the ErrorOr.Http generator into consumer projects.
+
+    Projects that GET the analyzer reference:
+      - ErrorOr.Http.Sample (and any future *.Sample projects)
+      - Any project without ".Tests", ".SnapShot" in name that isn't the generator itself
+
+    Projects that DON'T get the analyzer reference:
+      - ErrorOr.Http (the generator itself)
+      - ErrorOr.Http.Tests (uses testing infrastructure)
+      - ErrorOr.Http.SnapShot (snapshot testing)
+  -->
+
+  <PropertyGroup>
+    <!-- Detect project type by name pattern -->
+    <_IsErrorOrGenerator>$(MSBuildProjectName.Equals('ErrorOr.Http'))</_IsErrorOrGenerator>
+    <_IsTestProject>$(MSBuildProjectName.Contains('.Tests'))</_IsTestProject>
+    <_IsSnapshotProject>$(MSBuildProjectName.Contains('.SnapShot'))</_IsSnapshotProject>
+
+    <!-- Consumer projects: everything except generator, tests, and snapshots -->
+    <_IsConsumerProject Condition="'$(_IsErrorOrGenerator)' != 'true' AND '$(_IsTestProject)' != 'true' AND '$(_IsSnapshotProject)' != 'true'">true</_IsConsumerProject>
+  </PropertyGroup>
+
+  <!-- Auto-inject analyzer for consumer projects (development-time project reference) -->
+  <ItemGroup Condition="'$(_IsConsumerProject)' == 'true'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)ErrorOr.Http\ErrorOr.Http.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      SetTargetFramework="TargetFramework=netstandard2.0"
+                      PrivateAssets="all"/>
+  </ItemGroup>
+
+</Project>

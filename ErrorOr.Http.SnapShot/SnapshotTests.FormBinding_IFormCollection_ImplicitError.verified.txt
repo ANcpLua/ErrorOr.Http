@@ -1,0 +1,31 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: : (7,35)-(7,42),
+      Message: Endpoint 'Webhook' uses form binding but may receive non-form requests at runtime,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: EOE010,
+        Title: Form content type required,
+        MessageFormat: Endpoint '{0}' uses form binding but may receive non-form requests at runtime,
+        Category: Usage,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: : (7,59)-(7,67),
+      Message: Parameter 'formData' on 'Webhook' is IFormCollection but lacks [FromForm]. IFormCollection does not auto-bind—add [FromForm] explicitly.,
+      Severity: Error,
+      Descriptor: {
+        Id: EOE013,
+        Title: IFormCollection requires [FromForm],
+        MessageFormat: Parameter '{0}' on '{1}' is IFormCollection but lacks [FromForm]. IFormCollection does not auto-bind—add [FromForm] explicitly.,
+        Category: Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

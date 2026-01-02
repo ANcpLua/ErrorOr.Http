@@ -84,12 +84,37 @@ namespace ErrorOr.Http.Generated
         {
             if (errors.Count == 0) return TypedResults.Problem();
 
-            if (errors.Any(e => e.Type == global::ErrorOr.ErrorType.Validation))
+            var hasValidation = false;
+            for (var i = 0; i < errors.Count; i++)
             {
-                var modelStateDictionary = errors
-                    .Where(e => e.Type == global::ErrorOr.ErrorType.Validation)
-                    .GroupBy(e => e.Code)
-                    .ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray());
+                if (errors[i].Type == global::ErrorOr.ErrorType.Validation)
+                {
+                    hasValidation = true;
+                    break;
+                }
+            }
+
+            if (hasValidation)
+            {
+                // Build dictionary without LINQ allocation
+                var modelStateDictionary = new global::System.Collections.Generic.Dictionary<string, string[]>();
+                for (var i = 0; i < errors.Count; i++)
+                {
+                    var error = errors[i];
+                    if (error.Type != global::ErrorOr.ErrorType.Validation) continue;
+
+                    if (!modelStateDictionary.TryGetValue(error.Code, out var existing))
+                    {
+                        modelStateDictionary[error.Code] = new[] { error.Description };
+                    }
+                    else
+                    {
+                        var newArray = new string[existing.Length + 1];
+                        existing.CopyTo(newArray, 0);
+                        newArray[existing.Length] = error.Description;
+                        modelStateDictionary[error.Code] = newArray;
+                    }
+                }
                 return TypedResults.ValidationProblem(modelStateDictionary);
             }
 

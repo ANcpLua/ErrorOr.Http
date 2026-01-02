@@ -1,0 +1,31 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: : (8,35)-(8,42),
+      Message: Endpoint 'Webhook' uses form binding but may receive non-form requests at runtime,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: EOE010,
+        Title: Form content type required,
+        MessageFormat: Endpoint '{0}' uses form binding but may receive non-form requests at runtime,
+        Category: Usage,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: : (8,70)-(8,78),
+      Message: [FromForm] parameter 'formData' on 'Webhook' has unsupported shape: [FromForm] DTO must have a public constructor,
+      Severity: Error,
+      Descriptor: {
+        Id: EOE008,
+        Title: Unsupported [FromForm] DTO shape,
+        MessageFormat: [FromForm] parameter '{0}' on '{1}' has unsupported shape: {2},
+        Category: Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

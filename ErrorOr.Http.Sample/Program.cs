@@ -1,20 +1,13 @@
-using System;
-using System.Linq;
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using ErrorOr.Http.Generated;
 using ErrorOr.Http.Sample;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
-using ErrorOr.Http;
 
 var builder = WebApplication.CreateSlimBuilder(args);
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.TypeInfoResolver = TodoJsonContext.Default;
-    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
 });
 
 builder.Services.AddOpenApi();
@@ -23,7 +16,8 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
-// Sample data
+app.MapErrorOrEndpoints();
+
 TodoEndpoints.SampleTodos =
 [
     new Todo(1, "Walk the dog"),
@@ -38,7 +32,11 @@ app.Run();
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(Todo[]))]
 [JsonSerializable(typeof(Todo))]
-internal partial class TodoJsonContext : JsonSerializerContext { }
+[JsonSerializable(typeof(ProblemDetails))]
+[JsonSerializable(typeof(HttpValidationProblemDetails))]
+internal partial class TodoJsonContext : JsonSerializerContext
+{
+}
 
 namespace ErrorOr.Http.Sample
 {
@@ -48,16 +46,21 @@ namespace ErrorOr.Http.Sample
     {
         public static Todo[] SampleTodos { get; set; } = [];
 
-        [ErrorOrEndpoint("GET", "/")]
-        public static ErrorOr<Todo[]> GetAll() => SampleTodos;
+        [Get]
+        public static ErrorOr<Todo[]> GetAll()
+        {
+            return SampleTodos;
+        }
 
-        [ErrorOrEndpoint("GET", "/{id}")]
+        [Get("/{id}")]
         public static ErrorOr<Todo> GetById(int id)
-            => SampleTodos.FirstOrDefault(t => t.Id == id) is { } todo
+        {
+            return SampleTodos.FirstOrDefault(t => t.Id == id) is { } todo
                 ? todo
                 : Error.NotFound("Todo.NotFound", $"Todo with id {id} not found");
+        }
 
-        [ErrorOrEndpoint("POST", "/")]
+        [Post]
         public static ErrorOr<Todo> Create([FromBody] Todo todo)
         {
             if (string.IsNullOrWhiteSpace(todo.Title))
@@ -66,7 +69,7 @@ namespace ErrorOr.Http.Sample
             return todo with { Id = SampleTodos.Length + 1 };
         }
 
-        [ErrorOrEndpoint("DELETE", "/{id}")]
+        [Delete("/{id}")]
         public static ErrorOr<Deleted> Delete(int id)
         {
             if (SampleTodos.All(t => t.Id != id))

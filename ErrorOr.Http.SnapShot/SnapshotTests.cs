@@ -1,14 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
 using ErrorOr.Http.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Testing;
-using VerifyTests;
-using Xunit;
 
 namespace ErrorOr.Http.SnapShot;
 
@@ -33,8 +28,9 @@ public class SnapshotTests
     {
         VerifySourceGenerators.Initialize();
 
-        DerivePathInfo((file, _, type, method) => new PathInfo(
-            Path.GetDirectoryName(file)!,
+        DerivePathInfo(static (file, _, type, method) => new PathInfo(
+            Path.GetDirectoryName(file) ??
+            throw new InvalidOperationException($"Cannot determine directory for '{file}'"),
             type.Name,
             method.Name));
     }
@@ -159,7 +155,7 @@ public class SnapshotTests
                                 public static class Endpoints
                                 {
                                     [ErrorOrEndpoint("GET", "/search")]
-                                    public static ErrorOr<string> Search([AsParameters] SearchRequest request) => 
+                                    public static ErrorOr<string> Search([AsParameters] SearchRequest request) =>
                                         $"Query: {request.Query}, Page: {request.Page}, Header: {request.ApiKey}";
                                 }
 
@@ -200,21 +196,81 @@ public class SnapshotTests
     public Task FormBinding_PrimitiveAndFile()
     {
         var source = """
-            using ErrorOr;
-            using ErrorOr.Http;
-            using Microsoft.AspNetCore.Http;
-            using Microsoft.AspNetCore.Mvc;
+                     using ErrorOr;
+                     using ErrorOr.Http;
+                     using Microsoft.AspNetCore.Http;
+                     using Microsoft.AspNetCore.Mvc;
 
-            public static class Handlers
-            {
-                [ErrorOrEndpoint("POST", "/upload")]
-                public static ErrorOr<Success> Upload(
-                    [FromForm] string title,
-                    [FromForm] int version,
-                    IFormFile document)
-                    => Result.Success;
-            }
-            """;
+                     public static class Handlers
+                     {
+                         [ErrorOrEndpoint("POST", "/upload")]
+                         public static ErrorOr<Success> Upload(
+                             [FromForm] string title,
+                             [FromForm] int version,
+                             IFormFile document)
+                             => Result.Success;
+                     }
+                     """;
+
+        return VerifyGenerator(source);
+    }
+
+    [Fact]
+    public Task FormBinding_IFormCollection_Explicit()
+    {
+        var source = """
+                     using ErrorOr;
+                     using ErrorOr.Http;
+                     using Microsoft.AspNetCore.Http;
+                     using Microsoft.AspNetCore.Mvc;
+
+                     public static class Handlers
+                     {
+                         [ErrorOrEndpoint("POST", "/webhook")]
+                         public static ErrorOr<Success> Webhook([FromForm] IFormCollection formData)
+                             => Result.Success;
+                     }
+                     """;
+
+        return VerifyGenerator(source);
+    }
+
+    [Fact]
+    public Task FormBinding_IFormCollection_ImplicitError()
+    {
+        // IFormCollection without [FromForm] should emit EOE013 diagnostic
+        var source = """
+                     using ErrorOr;
+                     using ErrorOr.Http;
+                     using Microsoft.AspNetCore.Http;
+
+                     public static class Handlers
+                     {
+                         [ErrorOrEndpoint("POST", "/webhook")]
+                         public static ErrorOr<Success> Webhook(IFormCollection formData)
+                             => Result.Success;
+                     }
+                     """;
+
+        return VerifyGenerator(source);
+    }
+
+    [Fact]
+    public Task FormBinding_FormFileNullabilityWarning()
+    {
+        // Non-nullable IFormFile should emit EOE009 warning
+        var source = """
+                     using ErrorOr;
+                     using ErrorOr.Http;
+                     using Microsoft.AspNetCore.Http;
+
+                     public static class Handlers
+                     {
+                         [ErrorOrEndpoint("POST", "/upload")]
+                         public static ErrorOr<Success> Upload(IFormFile document)
+                             => Result.Success;
+                     }
+                     """;
 
         return VerifyGenerator(source);
     }

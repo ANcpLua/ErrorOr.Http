@@ -1,7 +1,7 @@
 # ErrorOr.Http — ASP.NET Core Implementation Reference
 
 **Target Framework:** .NET 10  
-**Last Updated:** December 2025  
+**Last Updated:** January 2025  
 **Source:** [Microsoft Learn - Minimal APIs](https://learn.microsoft.com/aspnet/core/fundamentals/minimal-apis)
 
 ---
@@ -49,13 +49,13 @@ All generated endpoints automatically return `401 Unauthorized` or `403 Forbidde
 
 ### Other .NET 10 Changes
 
-| Feature                 | Change                                       | Impact on ErrorOr.Http              |
-|-------------------------|----------------------------------------------|-------------------------------------|
-| **Built-in Validation** | `builder.Services.AddValidation()` available | ✅ Use built-in instead of custom   |
-| **OpenAPI 3.1**         | Default generation upgraded from 3.0         | ✅ Already compatible                |
-| **Native XML Docs**     | Native population of OpenAPI from XML        | ✅ No custom generator needed        |
-| **Empty Form Values**   | Bind to `null` for nullable types            | ✅ Simplifies `[FromForm]` logic    |
-| **SSE Support**         | `TypedResults.ServerSentEvents` added        | 💡 Future: `ErrorOr<SseItem<T>>`    |
+| Feature                 | Change                                       | Impact on ErrorOr.Http           |
+|-------------------------|----------------------------------------------|----------------------------------|
+| **Built-in Validation** | `builder.Services.AddValidation()` available | ✅ Use built-in instead of custom |
+| **OpenAPI 3.1**         | Default generation upgraded from 3.0         | ✅ Already compatible             |
+| **Native XML Docs**     | Native population of OpenAPI from XML        | ✅ No custom generator needed     |
+| **Empty Form Values**   | Bind to `null` for nullable types            | ✅ Simplifies `[FromForm]` logic  |
+| **SSE Support**         | `TypedResults.ServerSentEvents` added        | 💡 Future: `ErrorOr<SseItem<T>>` |
 
 ---
 
@@ -78,6 +78,7 @@ All generated endpoints automatically return `401 Unauthorized` or `403 Forbidde
 - ✅ **Brutal Safety**: Ambiguous parameters trigger compile errors (no runtime DI crashes)
 - ✅ `[AsParameters]` recursive parameter binding
 - ✅ Form binding (`[FromForm]` primitives and DTOs, `IFormFile`, `IFormFileCollection`)
+- ⏳ `IFormCollection` raw access (deferred v1.1 — use `[FromForm]` DTO instead)
 
 **Not Supported (v2.0 Roadmap):**
 
@@ -88,15 +89,16 @@ All generated endpoints automatically return `401 Unauthorized` or `403 Forbidde
 
 ### Priority Implementation Order
 
-| Priority | Feature                      | Status          | Est. Time | Blocker     |
-|----------|------------------------------|-----------------|-----------|-------------|
-| **DONE** | Route template parsing       | ✅ Completed    | -         | -           |
-| **DONE** | Special types detection      | ✅ Completed    | -         | -           |
-| **DONE** | Array/collection binding     | ✅ Completed    | -         | -           |
-| **DONE** | Implicit Query Binding       | ✅ Completed    | -         | -           |
-| **DONE** | AsParameters recursion       | ✅ Completed    | -         | -           |
-| **DONE** | Form binding + antiforgery   | ✅ Completed    | -         | -           |
-| 6        | SSE / Streaming Support      | 💡 Researching  | 60 min    | -           |
+| Priority | Feature                    | Status         | Est. Time | Blocker      |
+|----------|----------------------------|----------------|-----------|--------------|
+| **DONE** | Route template parsing     | ✅ Completed    | -         | -            |
+| **DONE** | Special types detection    | ✅ Completed    | -         | -            |
+| **DONE** | Array/collection binding   | ✅ Completed    | -         | -            |
+| **DONE** | Implicit Query Binding     | ✅ Completed    | -         | -            |
+| **DONE** | AsParameters recursion     | ✅ Completed    | -         | -            |
+| **DONE** | Form binding + antiforgery | ✅ Completed    | -         | -            |
+| 6        | SSE / Streaming Support    | 💡 Researching | 60 min    | -            |
+| 7        | IFormCollection raw access | ⏳ Deferred     | 15 min    | Low priority |
 
 ---
 
@@ -114,8 +116,9 @@ All generated endpoints automatically return `401 Unauthorized` or `403 Forbidde
 
 2. Special types (auto-detected):
    HttpContext → HttpRequest → HttpResponse → ClaimsPrincipal → 
-   CancellationToken → IFormCollection → IFormFileCollection → 
-   IFormFile → Stream → PipeReader
+   CancellationToken → IFormFileCollection → IFormFile → Stream → PipeReader
+   
+   ⚠️ NOT YET IMPLEMENTED: IFormCollection (v1.1 — use [FromForm] DTO instead)
 
 3. Custom binding methods:
    - IBindableFromHttpContext<T>.BindAsync
@@ -174,18 +177,18 @@ public static ErrorOr<Post> GetPost(
 
 **Types that bind without attributes:**
 
-| Type                  | Binding Source                          | Example               |
-|-----------------------|-----------------------------------------|-----------------------|
-| `HttpContext`         | `context`                               | Full request context  |
-| `HttpRequest`         | `context.Request`                       | Request details       |
-| `HttpResponse`        | `context.Response`                      | Response manipulation |
-| `ClaimsPrincipal`     | `context.User`                          | Authenticated user    |
-| `CancellationToken`   | `context.RequestAborted`                | Cancellation token    |
-| `Stream`              | `context.Request.Body`                  | Raw request body      |
-| `PipeReader`          | `context.Request.BodyReader`            | Streaming body reader |
-| `IFormFile`           | `context.Request.Form.Files[paramName]` | Single file upload    |
-| `IFormFileCollection` | `context.Request.Form.Files`            | Multiple file uploads |
-| `IFormCollection`     | `context.Request.Form`                  | Form data             |
+| Type                  | Binding Source                          | Status        |
+|-----------------------|-----------------------------------------|---------------|
+| `HttpContext`         | `context`                               | ✅ Implemented |
+| `HttpRequest`         | `context.Request`                       | ✅ Implemented |
+| `HttpResponse`        | `context.Response`                      | ✅ Implemented |
+| `ClaimsPrincipal`     | `context.User`                          | ✅ Implemented |
+| `CancellationToken`   | `context.RequestAborted`                | ✅ Implemented |
+| `Stream`              | `context.Request.Body`                  | ❌ v2.0        |
+| `PipeReader`          | `context.Request.BodyReader`            | ❌ v2.0        |
+| `IFormFile`           | `context.Request.Form.Files[paramName]` | ✅ Implemented |
+| `IFormFileCollection` | `context.Request.Form.Files`            | ✅ Implemented |
+| `IFormCollection`     | `context.Request.Form`                  | ⏳ v1.1        |
 
 **Detection Example:**
 
@@ -199,7 +202,6 @@ public static ErrorOr<FileResult> Download(
 **Package Dependencies:**
 
 ```xml
-
 <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0"/>
 <PackageReference Include="System.IO.Pipelines" Version="10.0.1"/>
 ```
@@ -484,10 +486,24 @@ class Todo
 }
 ```
 
+**IFormCollection (v1.1 — Low Priority):**
+
+```csharp
+// ⚠️ NOT YET IMPLEMENTED — Use [FromForm] DTO instead for type safety
+// IFormCollection is an escape hatch for dynamic forms with unknown fields
+[Post("/dynamic")]
+public static async Task<ErrorOr<string>> HandleDynamicForm(
+    IFormCollection form)  // ← Binds from ctx.Request.ReadFormAsync()
+{
+    var name = form["name"].ToString();
+    var values = form.Keys.Select(k => $"{k}={form[k]}");
+    return string.Join(", ", values);
+}
+```
+
 **Package Dependency:**
 
 ```xml
-
 <PackageReference Include="Microsoft.AspNetCore.Antiforgery" Version="2.3.0"/>
 ```
 
@@ -538,14 +554,14 @@ accurate than XML docs because it reflects actual code paths.
 
 ### Success Type Mapping
 
-| ErrorOr Type       | HTTP Status | OpenAPI Response                                |
-|--------------------|-------------|-------------------------------------------------|
-| `ErrorOr<T>`       | 200         | `ProducesResponseTypeAttribute(typeof(T), 200)` |
-| `ErrorOr<Deleted>` | 204         | `ProducesResponseTypeAttribute(204)`            |
-| `ErrorOr<Updated>` | 204         | `ProducesResponseTypeAttribute(204)`            |
-| `ErrorOr<Created>` | 201         | `ProducesResponseTypeAttribute(201)`            |
-| `ErrorOr<Success>` | 204         | `ProducesResponseTypeAttribute(204)`            |
-| `ErrorOr<SseItem<T>>`| 200        | `ProducesResponseTypeAttribute(200)` (SSE)      |
+| ErrorOr Type          | HTTP Status | OpenAPI Response                                |
+|-----------------------|-------------|-------------------------------------------------|
+| `ErrorOr<T>`          | 200         | `ProducesResponseTypeAttribute(typeof(T), 200)` |
+| `ErrorOr<Deleted>`    | 204         | `ProducesResponseTypeAttribute(204)`            |
+| `ErrorOr<Updated>`    | 204         | `ProducesResponseTypeAttribute(204)`            |
+| `ErrorOr<Created>`    | 201         | `ProducesResponseTypeAttribute(201)`            |
+| `ErrorOr<Success>`    | 204         | `ProducesResponseTypeAttribute(204)`            |
+| `ErrorOr<SseItem<T>>` | 200         | `ProducesResponseTypeAttribute(200)` (SSE)      |
 
 ---
 
@@ -596,7 +612,8 @@ app.MapGet("/users/{id}", (int id) => TypedResults.Ok(user))
 - Code analysis is more accurate (reflects actual implementation)
 - XML docs can lie; code can't
 - Keeps v1.0 implementation simple
-- **Note:** .NET 10 introduces AOT-compatible XML doc support and `builder.Services.AddValidation()`, making custom implementations for these redundant.
+- **Note:** .NET 10 introduces AOT-compatible XML doc support and `builder.Services.AddValidation()`, making custom
+  implementations for these redundant.
 
 **Example:**
 
@@ -616,12 +633,24 @@ public static ErrorOr<User> GetUser(int id) => id switch
 
 ---
 
+### Why Defer IFormCollection?
+
+| Scenario                       | Recommended Approach                | Why                                |
+|--------------------------------|-------------------------------------|------------------------------------|
+| Known form fields              | `[FromForm] MyDto`                  | Type-safe, compile-time validation |
+| File uploads                   | `IFormFile` / `IFormFileCollection` | ✅ Already supported                |
+| Dynamic forms (unknown fields) | `IFormCollection`                   | Only valid use case — rare         |
+
+**Decision:** `IFormCollection` is an escape hatch for when you can't define a DTO at compile time. In well-designed
+APIs, you always know your form schema. The 99% use case is covered — defer the 1% edge case to v1.1.
+
+---
+
 ## Package Dependencies
 
 ### Source Generator Project
 
 ```xml
-
 <ItemGroup>
     <!-- Type definitions for symbol analysis (not runtime) -->
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0"/>
@@ -672,11 +701,18 @@ public static ErrorOr<User> GetUser(int id) => id switch
 - [x] NativeAOT support
 - [x] Implicit Query (primitives)
 - [x] Safety Check (No implicit DI)
+- [x] Form binding (`[FromForm]`, `IFormFile`, `IFormFileCollection`)
+
+### v1.1 (Planned)
+
+- [ ] `IFormCollection` raw access (low priority — use `[FromForm]` DTO instead)
 
 ### v2.0 (Planned)
 
 - [x] **Priority 4:** AsParameters recursion
 - [x] **Priority 5:** Form binding + antiforgery
 - [ ] **Priority 6:** SSE / Streaming Support
+- [ ] Custom binding (`TryParse`, `BindAsync`)
+- [ ] Stream/PipeReader body binding
 
 ---

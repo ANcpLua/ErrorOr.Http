@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
@@ -133,8 +130,9 @@ public sealed partial class ErrorOrEndpointGenerator
                     types.Add(param.TypeFqn);
             }
 
-            if (!IsNoContentType(ep.SuccessTypeFqn))
-                types.Add(ep.SuccessTypeFqn);
+            if (ep.IsSse && ep.SseItemTypeFqn is not null)
+                types.Add(ep.SseItemTypeFqn);
+            else if (!IsNoContentType(ep.SuccessTypeFqn)) types.Add(ep.SuccessTypeFqn);
         }
 
         var sorted = types.ToList();
@@ -169,13 +167,12 @@ public sealed partial class ErrorOrEndpointGenerator
 
         code.AppendLine($"            app.MapMethods({patternLiteral}, {methodArray}, (RequestDelegate){methodName})");
 
-        // Generate OperationId and Tag from the handler type name
         var className = ep.HandlerContainingTypeFqn.Split('.').Last();
         if (className.Contains("::"))
-            className = className.Substring(className.IndexOf("::") + 2);
+            className = className[(className.IndexOf("::", StringComparison.Ordinal) + 2)..];
 
         var tagName = className.EndsWith("Endpoints")
-            ? className.Substring(0, className.Length - "Endpoints".Length)
+            ? className[..^"Endpoints".Length]
             : className;
 
         var operationId = $"{className}_{ep.HandlerMethodName}";
@@ -185,16 +182,22 @@ public sealed partial class ErrorOrEndpointGenerator
         code.AppendLine(
             $"            .WithMetadata(new global::Microsoft.AspNetCore.Http.TagsAttribute(\"{tagName}\"))");
 
-        // Add multipart/form-data accept metadata for form endpoints
         var hasFormParams = ep.HandlerParameters.Items.Any(p =>
             p.Source is EndpointParameterSource.Form or
-                        EndpointParameterSource.FormFile or
-                        EndpointParameterSource.FormFiles);
+                EndpointParameterSource.FormFile or
+                EndpointParameterSource.FormFiles or
+                EndpointParameterSource.FormCollection);
 
         if (hasFormParams)
         {
             code.AppendLine(
                 "            .WithMetadata(new global::Microsoft.AspNetCore.Http.Metadata.AcceptsMetadata(new[] { \"multipart/form-data\" }))");
+        }
+
+        if (ep.IsSse)
+        {
+            code.AppendLine(
+                "            .Produces(200, contentType: \"text/event-stream\")");
         }
 
         if (ep.IsObsolete)
@@ -204,18 +207,21 @@ public sealed partial class ErrorOrEndpointGenerator
             code.AppendLine($"            .WithMetadata(new global::System.ObsoleteAttribute({msg}{error}))");
         }
 
-        code.AppendLine(
-            isNoContent
-                ? $"            .WithMetadata(new global::Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute({successStatus}))"
-                : $"            .WithMetadata(new global::Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute(typeof({ep.SuccessTypeFqn}), {successStatus}))");
+        if (!ep.IsSse)
+        {
+            code.AppendLine(
+                isNoContent
+                    ? $"            .WithMetadata(new global::Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute({successStatus}))"
+                    : $"            .WithMetadata(new global::Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute(typeof({ep.SuccessTypeFqn}), {successStatus}))");
+        }
 
         if (!ep.InferredErrorTypes.IsDefaultOrEmpty)
         {
             foreach (var status in ep.InferredErrorTypes.Items.Select(MapErrorTypeToHttpStatus))
             {
                 var problemType = status == 400
-                    ? "global::Microsoft.AspNetCore.Http.HttpValidationProblemDetails"
-                    : "global::Microsoft.AspNetCore.Mvc.ProblemDetails";
+                    ? WellKnownTypes.Fqn.HttpValidationProblemDetails
+                    : WellKnownTypes.Fqn.ProblemDetails;
                 code.AppendLine(
                     "            .WithMetadata(new global::Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute(");
                 code.AppendLine($"                typeof({problemType}), {status}))");
@@ -231,16 +237,13 @@ public sealed partial class ErrorOrEndpointGenerator
         code.AppendLine($"        private static async Task Invoke_Ep{index}(HttpContext ctx)");
         code.AppendLine("        {");
 
-        // Check if any parameter requires form binding
         var hasFormParams = ep.HandlerParameters.Items.Any(p =>
             p.Source is EndpointParameterSource.Form or
-                        EndpointParameterSource.FormFile or
-                        EndpointParameterSource.FormFiles);
+                EndpointParameterSource.FormFile or
+                EndpointParameterSource.FormFiles or
+                EndpointParameterSource.FormCollection);
 
-        if (hasFormParams)
-        {
-            EmitFormContentTypeGuard(code);
-        }
+        if (hasFormParams) EmitFormContentTypeGuard(code);
 
         var args = new StringBuilder();
 
@@ -259,23 +262,35 @@ public sealed partial class ErrorOrEndpointGenerator
         code.AppendLine(
             $"            var result = {awaitKeyword}{ep.HandlerContainingTypeFqn}.{ep.HandlerMethodName}({args});");
 
-        code.AppendLine("            var response = result.Match<global::Microsoft.AspNetCore.Http.IResult>(");
-        var isPost = string.Equals(ep.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase);
-        var successResult = IsNoContentType(ep.SuccessTypeFqn)
-            ? "                _ => TypedResults.NoContent(),"
-            : isPost
-                ? "                value => TypedResults.Created(string.Empty, value),"
-                : "                value => TypedResults.Ok(value),";
-        code.AppendLine(successResult);
-        code.AppendLine("                errors => ToProblem(errors));");
-        code.AppendLine("            await response.ExecuteAsync(ctx);");
+        if (ep.IsSse)
+        {
+            code.AppendLine("            if (result.IsError)");
+            code.AppendLine("            {");
+            code.AppendLine("                await ToProblem(result.Errors).ExecuteAsync(ctx);");
+            code.AppendLine("                return;");
+            code.AppendLine("            }");
+            code.AppendLine("            await TypedResults.ServerSentEvents(result.Value).ExecuteAsync(ctx);");
+        }
+        else
+        {
+            code.AppendLine("            var response = result.Match<global::Microsoft.AspNetCore.Http.IResult>(");
+            var isPost = string.Equals(ep.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase);
+            var successResult = IsNoContentType(ep.SuccessTypeFqn)
+                ? "                _ => TypedResults.NoContent(),"
+                : isPost
+                    ? "                value => TypedResults.Created(string.Empty, value),"
+                    : "                value => TypedResults.Ok(value),";
+            code.AppendLine(successResult);
+            code.AppendLine("                errors => ToProblem(errors));");
+            code.AppendLine("            await response.ExecuteAsync(ctx);");
+        }
+
         code.AppendLine("        }");
         code.AppendLine();
     }
 
     private static void EmitAsParametersBinding(StringBuilder code, in EndpointParameter param, string paramName)
     {
-        // Recursively bind children
         var childVars = new List<string>();
         for (var i = 0; i < param.Children.Items.Length; i++)
         {
@@ -285,8 +300,6 @@ public sealed partial class ErrorOrEndpointGenerator
             childVars.Add(BuildArgumentExpression(in child, childVarName));
         }
 
-        // Construct the record/object
-        // Assumption: The type has a constructor matching the order of Children
         code.AppendLine($"            var {paramName} = new {param.TypeFqn}({string.Join(", ", childVars)});");
     }
 
@@ -313,6 +326,12 @@ public sealed partial class ErrorOrEndpointGenerator
 
     private static void EmitParameterBinding(StringBuilder code, in EndpointParameter param, string paramName)
     {
+        if (param.CustomBinding != CustomBindingMethod.None)
+        {
+            EmitCustomBinding(code, in param, paramName);
+            return;
+        }
+
         switch (param.Source)
         {
             case EndpointParameterSource.Route:
@@ -355,6 +374,16 @@ public sealed partial class ErrorOrEndpointGenerator
                 break;
             case EndpointParameterSource.FormFiles:
                 EmitFormFilesBinding(code, in param, paramName);
+                break;
+            case EndpointParameterSource.FormCollection:
+                // IFormCollection binds directly to the raw form data
+                code.AppendLine($"            var {paramName} = form;");
+                break;
+            case EndpointParameterSource.Stream:
+                code.AppendLine($"            var {paramName} = ctx.Request.Body;");
+                break;
+            case EndpointParameterSource.PipeReader:
+                code.AppendLine($"            var {paramName} = ctx.Request.BodyReader;");
                 break;
             default:
                 throw new InvalidOperationException($"Unknown parameter source: {param.Source}");
@@ -447,8 +476,6 @@ public sealed partial class ErrorOrEndpointGenerator
             code.AppendLine($"                if (!string.IsNullOrEmpty(item)) {paramName}List.Add(item!);");
         else
         {
-            // GetTryParseExpression returns e.g. "int.TryParse(item, out var parsedItem)"
-            // We use "item" as input, and "parsedItem" as the out variable name.
             code.AppendLine($"                if ({GetTryParseExpression(itemType, "item", "parsedItem")})");
             code.AppendLine("                {");
             code.AppendLine($"                    {paramName}List.Add(parsedItem);");
@@ -496,7 +523,6 @@ public sealed partial class ErrorOrEndpointGenerator
             return;
         }
 
-        // Primitives
         code.AppendLine($"            if (!TryGetQueryValue(ctx, \"{queryKey}\", out var {rawName}))");
         code.AppendLine("            {");
         if (param.IsNullable || !param.IsNonNullableValueType)
@@ -538,13 +564,12 @@ public sealed partial class ErrorOrEndpointGenerator
         var rawVar = $"{paramName}Raw";
 
         code.AppendLine($"            {param.TypeFqn} {paramName};");
-        code.AppendLine($"            if (!form.TryGetValue(\"{fieldName}\", out var {rawVar}) || {rawVar}.Count == 0)");
+        code.AppendLine(
+            $"            if (!form.TryGetValue(\"{fieldName}\", out var {rawVar}) || {rawVar}.Count == 0)");
         code.AppendLine("            {");
 
         if (param.IsNullable)
-        {
             code.AppendLine($"                {paramName} = default;");
-        }
         else
         {
             code.AppendLine("                ctx.Response.StatusCode = 400;");
@@ -556,14 +581,13 @@ public sealed partial class ErrorOrEndpointGenerator
         code.AppendLine("            {");
 
         if (IsStringType(param.TypeFqn))
-        {
             code.AppendLine($"                {paramName} = {rawVar}.ToString();");
-        }
         else
         {
             var tempVar = $"{paramName}Temp";
             var baseType = param.IsNullable ? param.TypeFqn.TrimEnd('?') : param.TypeFqn;
-            code.AppendLine($"                if (!{GetTryParseExpression(baseType, rawVar + ".ToString()", tempVar)})");
+            code.AppendLine(
+                $"                if (!{GetTryParseExpression(baseType, rawVar + ".ToString()", tempVar)})");
             code.AppendLine("                {");
             code.AppendLine("                    ctx.Response.StatusCode = 400;");
             code.AppendLine("                    return;");
@@ -595,18 +619,13 @@ public sealed partial class ErrorOrEndpointGenerator
         var fieldName = param.KeyName ?? param.Name;
 
         if (param.TypeFqn.Contains("IFormFileCollection"))
-        {
             code.AppendLine($"            var {paramName} = form.Files;");
-        }
         else
-        {
             code.AppendLine($"            var {paramName} = form.Files.GetFiles(\"{fieldName}\");");
-        }
     }
 
     private static void EmitFormDtoBinding(StringBuilder code, in EndpointParameter param, string paramName)
     {
-        // Emit binding for each child field
         for (var i = 0; i < param.Children.Items.Length; i++)
         {
             var child = param.Children.Items[i];
@@ -614,51 +633,42 @@ public sealed partial class ErrorOrEndpointGenerator
             EmitFormChildBinding(code, in child, childVarName);
         }
 
-        // Construct the DTO
         var args = string.Join(", ", param.Children.Items.Select((_, i) => $"{paramName}_f{i}"));
         code.AppendLine($"            var {paramName} = new {param.TypeFqn}({args});");
     }
 
     private static void EmitFormChildBinding(StringBuilder code, in EndpointParameter param, string varName)
     {
-        // Handle file types in DTOs
         if (param.Source == EndpointParameterSource.FormFile)
         {
             var fieldName = param.KeyName ?? param.Name;
             code.AppendLine($"            var {varName} = form.Files.GetFile(\"{fieldName}\");");
             if (!param.IsNullable)
-            {
                 code.AppendLine($"            if ({varName} is null) {{ ctx.Response.StatusCode = 400; return; }}");
-            }
+
             return;
         }
 
         if (param.Source == EndpointParameterSource.FormFiles)
         {
             var fieldName = param.KeyName ?? param.Name;
-            if (param.TypeFqn.Contains("IFormFileCollection"))
-            {
-                code.AppendLine($"            var {varName} = form.Files;");
-            }
-            else
-            {
-                code.AppendLine($"            var {varName} = form.Files.GetFiles(\"{fieldName}\");");
-            }
+            code.AppendLine(param.TypeFqn.Contains("IFormFileCollection")
+                ? $"            var {varName} = form.Files;"
+                : $"            var {varName} = form.Files.GetFiles(\"{fieldName}\");");
+
             return;
         }
 
-        // Primitive binding
         var rawVar = $"{varName}Raw";
         var fieldName2 = param.KeyName ?? param.Name;
 
         code.AppendLine($"            {param.TypeFqn} {varName};");
-        code.AppendLine($"            if (!form.TryGetValue(\"{fieldName2}\", out var {rawVar}) || {rawVar}.Count == 0)");
+        code.AppendLine(
+            $"            if (!form.TryGetValue(\"{fieldName2}\", out var {rawVar}) || {rawVar}.Count == 0)");
         code.AppendLine("            {");
 
         if (param.IsNullable)
-        {
             code.AppendLine($"                {varName} = default;");
-        }
         else
         {
             code.AppendLine("                ctx.Response.StatusCode = 400;");
@@ -670,14 +680,13 @@ public sealed partial class ErrorOrEndpointGenerator
         code.AppendLine("            {");
 
         if (IsStringType(param.TypeFqn))
-        {
             code.AppendLine($"                {varName} = {rawVar}.ToString();");
-        }
         else
         {
             var tempVar = $"{varName}Temp";
             var baseType = param.IsNullable ? param.TypeFqn.TrimEnd('?') : param.TypeFqn;
-            code.AppendLine($"                if (!{GetTryParseExpression(baseType, rawVar + ".ToString()", tempVar)})");
+            code.AppendLine(
+                $"                if (!{GetTryParseExpression(baseType, rawVar + ".ToString()", tempVar)})");
             code.AppendLine("                {");
             code.AppendLine("                    ctx.Response.StatusCode = 400;");
             code.AppendLine("                    return;");
@@ -690,6 +699,11 @@ public sealed partial class ErrorOrEndpointGenerator
 
     private static string BuildArgumentExpression(in EndpointParameter param, string paramName)
     {
+        if (param.CustomBinding is CustomBindingMethod.BindAsync
+            or CustomBindingMethod.BindAsyncWithParam
+            or CustomBindingMethod.Bindable)
+            return param.IsNullable ? paramName : paramName + "!";
+
         return param.Source switch
         {
             EndpointParameterSource.Body when param.IsNonNullableValueType => paramName + ".Value",
@@ -777,12 +791,38 @@ public sealed partial class ErrorOrEndpointGenerator
         code.AppendLine("        {");
         code.AppendLine("            if (errors.Count == 0) return TypedResults.Problem();");
         code.AppendLine();
-        code.AppendLine("            if (errors.Any(e => e.Type == global::ErrorOr.ErrorType.Validation))");
+        // Zero-allocation validation error check (Gemini optimization)
+        code.AppendLine("            var hasValidation = false;");
+        code.AppendLine("            for (var i = 0; i < errors.Count; i++)");
         code.AppendLine("            {");
-        code.AppendLine("                var modelStateDictionary = errors");
-        code.AppendLine("                    .Where(e => e.Type == global::ErrorOr.ErrorType.Validation)");
-        code.AppendLine("                    .GroupBy(e => e.Code)");
-        code.AppendLine("                    .ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray());");
+        code.AppendLine("                if (errors[i].Type == global::ErrorOr.ErrorType.Validation)");
+        code.AppendLine("                {");
+        code.AppendLine("                    hasValidation = true;");
+        code.AppendLine("                    break;");
+        code.AppendLine("                }");
+        code.AppendLine("            }");
+        code.AppendLine();
+        code.AppendLine("            if (hasValidation)");
+        code.AppendLine("            {");
+        code.AppendLine("                // Build dictionary without LINQ allocation");
+        code.AppendLine("                var modelStateDictionary = new global::System.Collections.Generic.Dictionary<string, string[]>();");
+        code.AppendLine("                for (var i = 0; i < errors.Count; i++)");
+        code.AppendLine("                {");
+        code.AppendLine("                    var error = errors[i];");
+        code.AppendLine("                    if (error.Type != global::ErrorOr.ErrorType.Validation) continue;");
+        code.AppendLine();
+        code.AppendLine("                    if (!modelStateDictionary.TryGetValue(error.Code, out var existing))");
+        code.AppendLine("                    {");
+        code.AppendLine("                        modelStateDictionary[error.Code] = new[] { error.Description };");
+        code.AppendLine("                    }");
+        code.AppendLine("                    else");
+        code.AppendLine("                    {");
+        code.AppendLine("                        var newArray = new string[existing.Length + 1];");
+        code.AppendLine("                        existing.CopyTo(newArray, 0);");
+        code.AppendLine("                        newArray[existing.Length] = error.Description;");
+        code.AppendLine("                        modelStateDictionary[error.Code] = newArray;");
+        code.AppendLine("                    }");
+        code.AppendLine("                }");
         code.AppendLine("                return TypedResults.ValidationProblem(modelStateDictionary);");
         code.AppendLine("            }");
         code.AppendLine();
@@ -814,4 +854,93 @@ public sealed partial class ErrorOrEndpointGenerator
     {
         return errorType switch { 2 => 400, 3 => 409, 4 => 404, 5 => 401, 6 => 403, 0 => 422, _ => 500 };
     }
+
+
+    /// <summary>
+    ///     Emits binding code for types with custom binding methods (TryParse, BindAsync, IBindableFromHttpContext).
+    /// </summary>
+    private static void EmitCustomBinding(StringBuilder code, in EndpointParameter param, string paramName)
+    {
+        switch (param.CustomBinding)
+        {
+            case CustomBindingMethod.TryParse:
+            case CustomBindingMethod.TryParseWithFormat:
+                EmitTryParseBinding(code, in param, paramName);
+                break;
+            case CustomBindingMethod.BindAsync:
+            case CustomBindingMethod.BindAsyncWithParam:
+            case CustomBindingMethod.Bindable:
+                EmitBindAsyncBinding(code, in param, paramName);
+                break;
+        }
+    }
+
+    private static void EmitTryParseBinding(StringBuilder code, in EndpointParameter param, string paramName)
+    {
+        var keyName = param.KeyName ?? param.Name;
+        var rawName = $"{paramName}Raw";
+
+        var sourceMethod = param.Source == EndpointParameterSource.Route
+            ? "TryGetRouteValue"
+            : "TryGetQueryValue";
+
+        code.AppendLine($"            {param.TypeFqn}{(param.IsNullable ? "" : "?")} {paramName};");
+        code.AppendLine($"            if (!{sourceMethod}(ctx, \"{keyName}\", out var {rawName}))");
+        code.AppendLine("            {");
+
+        if (param.IsNullable)
+            code.AppendLine($"                {paramName} = default;");
+        else
+        {
+            code.AppendLine("                await TypedResults.BadRequest().ExecuteAsync(ctx);");
+            code.AppendLine("                return;");
+        }
+
+        code.AppendLine("            }");
+        code.AppendLine("            else");
+        code.AppendLine("            {");
+
+        var baseType = param.TypeFqn.TrimEnd('?');
+        var tempName = $"{paramName}Temp";
+
+        code.AppendLine(param.CustomBinding == CustomBindingMethod.TryParseWithFormat
+            ? $"                if (!{baseType}.TryParse({rawName}, null, out var {tempName}))"
+            : $"                if (!{baseType}.TryParse({rawName}, out var {tempName}))");
+
+        code.AppendLine("                {");
+
+        if (param.IsNullable)
+            code.AppendLine($"                    {paramName} = default;");
+        else
+        {
+            code.AppendLine("                    await TypedResults.BadRequest().ExecuteAsync(ctx);");
+            code.AppendLine("                    return;");
+        }
+
+        code.AppendLine("                }");
+        code.AppendLine("                else");
+        code.AppendLine("                {");
+        code.AppendLine($"                    {paramName} = {tempName};");
+        code.AppendLine("                }");
+        code.AppendLine("            }");
+    }
+
+    private static void EmitBindAsyncBinding(StringBuilder code, in EndpointParameter param, string paramName)
+    {
+        var baseType = param.TypeFqn.TrimEnd('?');
+
+        code.AppendLine(param.CustomBinding == CustomBindingMethod.BindAsyncWithParam
+            ? $"            var {paramName} = await {baseType}.BindAsync(ctx, null!);"
+            : $"            var {paramName} = await {baseType}.BindAsync(ctx);");
+
+        if (!param.IsNullable)
+        {
+            code.AppendLine($"            if ({paramName} is null)");
+            code.AppendLine("            {");
+            code.AppendLine("                await TypedResults.BadRequest().ExecuteAsync(ctx);");
+            code.AppendLine("                return;");
+            code.AppendLine("            }");
+        }
+    }
+
 }

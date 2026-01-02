@@ -13,7 +13,7 @@ public class EndpointGeneratorTests
 
                                              public static class Endpoints
                                              {
-                                                 [ErrorOrEndpoint("GET", "/users/{id}")]
+                                                 [Get( "/users/{id}")]
                                                  public static ErrorOr<User> GetUser(int id) =>
                                                      id < 0 ? Error.Validation("User.InvalidId", "Invalid ID") :
                                                      id is 0 ? Error.NotFound("User.NotFound", "Not found") :
@@ -30,7 +30,7 @@ public class EndpointGeneratorTests
 
                                               public static class Endpoints
                                               {
-                                                  [ErrorOrEndpoint("GET", "/async")]
+                                                  [Get( "/async")]
                                                   public static async Task<ErrorOr<string>> GetAsync()
                                                   {
                                                       await Task.Delay(1);
@@ -45,7 +45,7 @@ public class EndpointGeneratorTests
 
                                                  public static class Endpoints
                                                  {
-                                                     [ErrorOrEndpoint("DELETE", "/users/{id}")]
+                                                     [Delete( "/users/{id}")]
                                                      public static ErrorOr<Deleted> Delete(int id) =>
                                                          id is 0 ? Error.NotFound("User.NotFound", "Not found") : Result.Deleted;
                                                  }
@@ -57,8 +57,8 @@ public class EndpointGeneratorTests
 
                                                     public static class Endpoints
                                                     {
-                                                        [ErrorOrEndpoint("GET", "/a")]
-                                                        [ErrorOrEndpoint("GET", "/b")]
+                                                        [Get( "/a")]
+                                                        [Get( "/b")]
                                                         public static ErrorOr<string> Get() => "ok";
                                                     }
                                                     """;
@@ -70,7 +70,7 @@ public class EndpointGeneratorTests
 
                                                 public static class Endpoints
                                                 {
-                                                    [ErrorOrEndpoint("GET", "/users/{userId}")]
+                                                    [Get( "/users/{userId}")]
                                                     public static ErrorOr<string> GetUser([FromRoute(Name = "userId")] int id) => "ok";
                                                 }
                                                 """;
@@ -81,7 +81,7 @@ public class EndpointGeneratorTests
 
                                                     public static class Endpoints
                                                     {
-                                                        [ErrorOrEndpoint("POST", "/users")]
+                                                        [Post( "/users")]
                                                         public static ErrorOr<string> CreateUser(User name, User email) => "ok";
                                                     }
 
@@ -95,7 +95,7 @@ public class EndpointGeneratorTests
 
                                                         public static class Endpoints
                                                         {
-                                                            [ErrorOrEndpoint("POST", "/users")]
+                                                            [Post( "/users")]
                                                             public static ErrorOr<string> CreateUser([FromBody] string name, [FromBody] string email) => "ok";
                                                         }
                                                         """;
@@ -109,10 +109,266 @@ public class EndpointGeneratorTests
                                                {
                                                    private static Error UserNotFound => Error.NotFound("User.NotFound", "Not found");
 
-                                                   [ErrorOrEndpoint("GET", "/users/{id}")]
+                                                   [Get( "/users/{id}")]
                                                    public static ErrorOr<string> GetUser(int id) => UserNotFound;
                                                }
                                                """;
+
+
+    private const string StreamParameterSource = """
+                                                 using ErrorOr;
+                                                 using ErrorOr.Http;
+                                                 using System.IO;
+                                                 using System.Threading.Tasks;
+
+                                                 public static class Endpoints
+                                                 {
+                                                     [Post( "/upload/raw")]
+                                                     public static async Task<ErrorOr<string>> UploadRaw(Stream body)
+                                                     {
+                                                         using var ms = new MemoryStream();
+                                                         await body.CopyToAsync(ms);
+                                                         return $"Received {ms.Length} bytes";
+                                                     }
+                                                 }
+                                                 """;
+
+    private const string PipeReaderParameterSource = """
+                                                     using ErrorOr;
+                                                     using ErrorOr.Http;
+                                                     using System.IO.Pipelines;
+                                                     using System.Threading.Tasks;
+
+                                                     public static class Endpoints
+                                                     {
+                                                         [Post( "/upload/pipe")]
+                                                         public static async Task<ErrorOr<string>> UploadPipe(PipeReader reader)
+                                                         {
+                                                             var result = await reader.ReadAsync();
+                                                             reader.AdvanceTo(result.Buffer.End);
+                                                             return $"Received {result.Buffer.Length} bytes";
+                                                         }
+                                                     }
+                                                     """;
+
+    private const string StreamWithBodyConflictSource = """
+                                                        using ErrorOr;
+                                                        using ErrorOr.Http;
+                                                        using System.IO;
+                                                        using Microsoft.AspNetCore.Mvc;
+
+                                                        public static class Endpoints
+                                                        {
+                                                            [Post( "/conflict")]
+                                                            public static ErrorOr<string> Conflict(
+                                                                Stream body,
+                                                                [FromBody] string dto) => "conflict";
+                                                        }
+                                                        """;
+
+    private const string PipeReaderWithFormConflictSource = """
+                                                            using ErrorOr;
+                                                            using ErrorOr.Http;
+                                                            using System.IO.Pipelines;
+                                                            using Microsoft.AspNetCore.Http;
+
+                                                            public static class Endpoints
+                                                            {
+                                                                [Post( "/conflict")]
+                                                                public static ErrorOr<string> Conflict(
+                                                                    PipeReader reader,
+                                                                    IFormFile file) => "conflict";
+                                                            }
+                                                            """;
+
+
+    private const string SseSimpleSource = """
+                                           using ErrorOr;
+                                           using ErrorOr.Http;
+                                           using System.Collections.Generic;
+
+                                           public static class Endpoints
+                                           {
+                                               [Get( "/stream")]
+                                               public static ErrorOr<IAsyncEnumerable<int>> StreamNumbers()
+                                               {
+                                                   return StreamAsync();
+
+                                                   static async IAsyncEnumerable<int> StreamAsync()
+                                                   {
+                                                       for (var i = 0; i < 10; i++)
+                                                       {
+                                                           yield return i;
+                                                       }
+                                                   }
+                                               }
+                                           }
+                                           """;
+
+    private const string SseSseItemSource = """
+                                            using ErrorOr;
+                                            using ErrorOr.Http;
+                                            using System.Collections.Generic;
+                                            using System.Net.ServerSentEvents;
+
+                                            public static class Endpoints
+                                            {
+                                                [Get( "/events")]
+                                                public static ErrorOr<IAsyncEnumerable<SseItem<string>>> StreamEvents()
+                                                {
+                                                    return StreamAsync();
+
+                                                    static async IAsyncEnumerable<SseItem<string>> StreamAsync()
+                                                    {
+                                                        yield return new SseItem<string>("Hello");
+                                                        yield return new SseItem<string>("World");
+                                                    }
+                                                }
+                                            }
+                                            """;
+
+    private const string SseAsyncSource = """
+                                          using ErrorOr;
+                                          using ErrorOr.Http;
+                                          using System.Collections.Generic;
+                                          using System.Threading.Tasks;
+
+                                          public static class Endpoints
+                                          {
+                                              [Get( "/async-stream")]
+                                              public static async Task<ErrorOr<IAsyncEnumerable<string>>> AsyncStream()
+                                              {
+                                                  await Task.Delay(1);
+                                                  return StreamAsync();
+
+                                                  static async IAsyncEnumerable<string> StreamAsync()
+                                                  {
+                                                      yield return "data";
+                                                  }
+                                              }
+                                          }
+                                          """;
+
+    private const string SseWithErrorSource = """
+                                              using ErrorOr;
+                                              using ErrorOr.Http;
+                                              using System.Collections.Generic;
+
+                                              public static class Endpoints
+                                              {
+                                                  [Get( "/feed/{id}")]
+                                                  public static ErrorOr<IAsyncEnumerable<string>> GetFeed(int id)
+                                                  {
+                                                      if (id < 0)
+                                                          return Error.Validation("Feed.InvalidId", "Invalid ID");
+                                                      if (id == 0)
+                                                          return Error.NotFound("Feed.NotFound", "Feed not found");
+
+                                                      return StreamAsync();
+
+                                                      static async IAsyncEnumerable<string> StreamAsync()
+                                                      {
+                                                          yield return "item";
+                                                      }
+                                                  }
+                                              }
+                                              """;
+
+
+    private const string TryParseParameterSource = """
+                                                   using ErrorOr;
+                                                   using ErrorOr.Http;
+
+                                                   public static class Endpoints
+                                                   {
+                                                       [Get( "/map")]
+                                                       public static ErrorOr<string> GetMap(Point point)
+                                                           => $"Point: {point.X}, {point.Y}";
+                                                   }
+
+                                                   public class Point
+                                                   {
+                                                       public double X { get; set; }
+                                                       public double Y { get; set; }
+
+                                                       public static bool TryParse(string? value, out Point? point)
+                                                       {
+                                                           var segments = value?.Split(',');
+                                                           if (segments?.Length == 2
+                                                               && double.TryParse(segments[0], out var x)
+                                                               && double.TryParse(segments[1], out var y))
+                                                           {
+                                                               point = new Point { X = x, Y = y };
+                                                               return true;
+                                                           }
+                                                           point = null;
+                                                           return false;
+                                                       }
+                                                   }
+                                                   """;
+
+    private const string TryParseRouteSource = """
+                                               using ErrorOr;
+                                               using ErrorOr.Http;
+
+                                               public static class Endpoints
+                                               {
+                                                   [Get( "/location/{coords}")]
+                                                   public static ErrorOr<string> GetLocation(Point coords)
+                                                       => $"Location: {coords.X}, {coords.Y}";
+                                               }
+
+                                               public class Point
+                                               {
+                                                   public double X { get; set; }
+                                                   public double Y { get; set; }
+
+                                                   public static bool TryParse(string? value, out Point? point)
+                                                   {
+                                                       var segments = value?.Split(',');
+                                                       if (segments?.Length == 2
+                                                           && double.TryParse(segments[0], out var x)
+                                                           && double.TryParse(segments[1], out var y))
+                                                       {
+                                                           point = new Point { X = x, Y = y };
+                                                           return true;
+                                                       }
+                                                       point = null;
+                                                       return false;
+                                                   }
+                                               }
+                                               """;
+
+    private const string BindAsyncParameterSource = """
+                                                    using ErrorOr;
+                                                    using ErrorOr.Http;
+                                                    using Microsoft.AspNetCore.Http;
+                                                    using System.Threading.Tasks;
+
+                                                    public static class Endpoints
+                                                    {
+                                                        [Get( "/products")]
+                                                        public static ErrorOr<string> GetProducts(PagingData paging)
+                                                            => $"Page: {paging.Page}, SortBy: {paging.SortBy}";
+                                                    }
+
+                                                    public class PagingData
+                                                    {
+                                                        public string? SortBy { get; init; }
+                                                        public int Page { get; init; } = 1;
+
+                                                        public static ValueTask<PagingData?> BindAsync(HttpContext context)
+                                                        {
+                                                            int.TryParse(context.Request.Query["page"], out var page);
+
+                                                            return ValueTask.FromResult<PagingData?>(new PagingData
+                                                            {
+                                                                SortBy = context.Request.Query["sortBy"],
+                                                                Page = page == 0 ? 1 : page
+                                                            });
+                                                        }
+                                                    }
+                                                    """;
 
 
     private static readonly string[] s_trackingNames = ["EndpointCollection"];
@@ -273,73 +529,6 @@ public class EndpointGeneratorTests
             false);
     }
 
-
-    private const string StreamParameterSource = """
-                                                 using ErrorOr;
-                                                 using ErrorOr.Http;
-                                                 using System.IO;
-                                                 using System.Threading.Tasks;
-
-                                                 public static class Endpoints
-                                                 {
-                                                     [ErrorOrEndpoint("POST", "/upload/raw")]
-                                                     public static async Task<ErrorOr<string>> UploadRaw(Stream body)
-                                                     {
-                                                         using var ms = new MemoryStream();
-                                                         await body.CopyToAsync(ms);
-                                                         return $"Received {ms.Length} bytes";
-                                                     }
-                                                 }
-                                                 """;
-
-    private const string PipeReaderParameterSource = """
-                                                     using ErrorOr;
-                                                     using ErrorOr.Http;
-                                                     using System.IO.Pipelines;
-                                                     using System.Threading.Tasks;
-
-                                                     public static class Endpoints
-                                                     {
-                                                         [ErrorOrEndpoint("POST", "/upload/pipe")]
-                                                         public static async Task<ErrorOr<string>> UploadPipe(PipeReader reader)
-                                                         {
-                                                             var result = await reader.ReadAsync();
-                                                             reader.AdvanceTo(result.Buffer.End);
-                                                             return $"Received {result.Buffer.Length} bytes";
-                                                         }
-                                                     }
-                                                     """;
-
-    private const string StreamWithBodyConflictSource = """
-                                                        using ErrorOr;
-                                                        using ErrorOr.Http;
-                                                        using System.IO;
-                                                        using Microsoft.AspNetCore.Mvc;
-
-                                                        public static class Endpoints
-                                                        {
-                                                            [ErrorOrEndpoint("POST", "/conflict")]
-                                                            public static ErrorOr<string> Conflict(
-                                                                Stream body,
-                                                                [FromBody] string dto) => "conflict";
-                                                        }
-                                                        """;
-
-    private const string PipeReaderWithFormConflictSource = """
-                                                            using ErrorOr;
-                                                            using ErrorOr.Http;
-                                                            using System.IO.Pipelines;
-                                                            using Microsoft.AspNetCore.Http;
-
-                                                            public static class Endpoints
-                                                            {
-                                                                [ErrorOrEndpoint("POST", "/conflict")]
-                                                                public static ErrorOr<string> Conflict(
-                                                                    PipeReader reader,
-                                                                    IFormFile file) => "conflict";
-                                                            }
-                                                            """;
-
     [Fact]
     public Task StreamParameter_Compiles()
     {
@@ -383,100 +572,6 @@ public class EndpointGeneratorTests
         return PipeReaderWithFormConflictSource.ShouldHaveDiagnostics<ErrorOrEndpointGenerator>(
             GeneratorTestExtensions.Diagnostic("EOE006"));
     }
-
-
-
-    private const string SseSimpleSource = """
-                                           using ErrorOr;
-                                           using ErrorOr.Http;
-                                           using System.Collections.Generic;
-
-                                           public static class Endpoints
-                                           {
-                                               [ErrorOrEndpoint("GET", "/stream")]
-                                               public static ErrorOr<IAsyncEnumerable<int>> StreamNumbers()
-                                               {
-                                                   return StreamAsync();
-
-                                                   static async IAsyncEnumerable<int> StreamAsync()
-                                                   {
-                                                       for (var i = 0; i < 10; i++)
-                                                       {
-                                                           yield return i;
-                                                       }
-                                                   }
-                                               }
-                                           }
-                                           """;
-
-    private const string SseSseItemSource = """
-                                            using ErrorOr;
-                                            using ErrorOr.Http;
-                                            using System.Collections.Generic;
-                                            using System.Net.ServerSentEvents;
-
-                                            public static class Endpoints
-                                            {
-                                                [ErrorOrEndpoint("GET", "/events")]
-                                                public static ErrorOr<IAsyncEnumerable<SseItem<string>>> StreamEvents()
-                                                {
-                                                    return StreamAsync();
-
-                                                    static async IAsyncEnumerable<SseItem<string>> StreamAsync()
-                                                    {
-                                                        yield return new SseItem<string>("Hello");
-                                                        yield return new SseItem<string>("World");
-                                                    }
-                                                }
-                                            }
-                                            """;
-
-    private const string SseAsyncSource = """
-                                          using ErrorOr;
-                                          using ErrorOr.Http;
-                                          using System.Collections.Generic;
-                                          using System.Threading.Tasks;
-
-                                          public static class Endpoints
-                                          {
-                                              [ErrorOrEndpoint("GET", "/async-stream")]
-                                              public static async Task<ErrorOr<IAsyncEnumerable<string>>> AsyncStream()
-                                              {
-                                                  await Task.Delay(1);
-                                                  return StreamAsync();
-
-                                                  static async IAsyncEnumerable<string> StreamAsync()
-                                                  {
-                                                      yield return "data";
-                                                  }
-                                              }
-                                          }
-                                          """;
-
-    private const string SseWithErrorSource = """
-                                              using ErrorOr;
-                                              using ErrorOr.Http;
-                                              using System.Collections.Generic;
-
-                                              public static class Endpoints
-                                              {
-                                                  [ErrorOrEndpoint("GET", "/feed/{id}")]
-                                                  public static ErrorOr<IAsyncEnumerable<string>> GetFeed(int id)
-                                                  {
-                                                      if (id < 0)
-                                                          return Error.Validation("Feed.InvalidId", "Invalid ID");
-                                                      if (id == 0)
-                                                          return Error.NotFound("Feed.NotFound", "Feed not found");
-
-                                                      return StreamAsync();
-
-                                                      static async IAsyncEnumerable<string> StreamAsync()
-                                                      {
-                                                          yield return "item";
-                                                      }
-                                                  }
-                                              }
-                                              """;
 
     [Fact]
     public Task SseSimple_Compiles()
@@ -574,103 +669,6 @@ public class EndpointGeneratorTests
             false);
     }
 
-
-
-    private const string TryParseParameterSource = """
-                                                   using ErrorOr;
-                                                   using ErrorOr.Http;
-
-                                                   public static class Endpoints
-                                                   {
-                                                       [ErrorOrEndpoint("GET", "/map")]
-                                                       public static ErrorOr<string> GetMap(Point point)
-                                                           => $"Point: {point.X}, {point.Y}";
-                                                   }
-
-                                                   public class Point
-                                                   {
-                                                       public double X { get; set; }
-                                                       public double Y { get; set; }
-
-                                                       public static bool TryParse(string? value, out Point? point)
-                                                       {
-                                                           var segments = value?.Split(',');
-                                                           if (segments?.Length == 2
-                                                               && double.TryParse(segments[0], out var x)
-                                                               && double.TryParse(segments[1], out var y))
-                                                           {
-                                                               point = new Point { X = x, Y = y };
-                                                               return true;
-                                                           }
-                                                           point = null;
-                                                           return false;
-                                                       }
-                                                   }
-                                                   """;
-
-    private const string TryParseRouteSource = """
-                                               using ErrorOr;
-                                               using ErrorOr.Http;
-
-                                               public static class Endpoints
-                                               {
-                                                   [ErrorOrEndpoint("GET", "/location/{coords}")]
-                                                   public static ErrorOr<string> GetLocation(Point coords)
-                                                       => $"Location: {coords.X}, {coords.Y}";
-                                               }
-
-                                               public class Point
-                                               {
-                                                   public double X { get; set; }
-                                                   public double Y { get; set; }
-
-                                                   public static bool TryParse(string? value, out Point? point)
-                                                   {
-                                                       var segments = value?.Split(',');
-                                                       if (segments?.Length == 2
-                                                           && double.TryParse(segments[0], out var x)
-                                                           && double.TryParse(segments[1], out var y))
-                                                       {
-                                                           point = new Point { X = x, Y = y };
-                                                           return true;
-                                                       }
-                                                       point = null;
-                                                       return false;
-                                                   }
-                                               }
-                                               """;
-
-    private const string BindAsyncParameterSource = """
-                                                    using ErrorOr;
-                                                    using ErrorOr.Http;
-                                                    using Microsoft.AspNetCore.Http;
-                                                    using System.Threading.Tasks;
-
-                                                    public static class Endpoints
-                                                    {
-                                                        [ErrorOrEndpoint("GET", "/products")]
-                                                        public static ErrorOr<string> GetProducts(PagingData paging)
-                                                            => $"Page: {paging.Page}, SortBy: {paging.SortBy}";
-                                                    }
-
-                                                    public class PagingData
-                                                    {
-                                                        public string? SortBy { get; init; }
-                                                        public int Page { get; init; } = 1;
-
-                                                        public static ValueTask<PagingData?> BindAsync(HttpContext context)
-                                                        {
-                                                            int.TryParse(context.Request.Query["page"], out var page);
-
-                                                            return ValueTask.FromResult<PagingData?>(new PagingData
-                                                            {
-                                                                SortBy = context.Request.Query["sortBy"],
-                                                                Page = page == 0 ? 1 : page
-                                                            });
-                                                        }
-                                                    }
-                                                    """;
-
     [Fact]
     public Task TryParseParameter_Compiles()
     {
@@ -724,5 +722,4 @@ public class EndpointGeneratorTests
             "await global::PagingData.BindAsync(ctx)",
             false);
     }
-
 }

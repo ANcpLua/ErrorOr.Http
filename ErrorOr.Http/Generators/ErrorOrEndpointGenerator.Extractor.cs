@@ -11,6 +11,7 @@ namespace ErrorOr.Http.Generators;
 /// </summary>
 public sealed partial class ErrorOrEndpointGenerator
 {
+    private static readonly char[] s_routeSeparators = [':', '=', '?'];
 
     internal static EndpointData ExtractEndpointData(GeneratorAttributeSyntaxContext ctx)
     {
@@ -124,7 +125,7 @@ public sealed partial class ErrorOrEndpointGenerator
         if (attrClass is null)
             return false;
 
-        // Check for base attribute [ErrorOrEndpoint("GET", "/path")]
+        // Check for custom derived attributes (not the built-in [Get], [Post], etc.)
         if (attrClass == WellKnownTypes.ErrorOrEndpointAttribute)
         {
             if (attr.ConstructorArguments.Length < 2)
@@ -141,8 +142,8 @@ public sealed partial class ErrorOrEndpointGenerator
             return true;
         }
 
-        // Check for shorthand attributes [Get], [Post], etc.
-        var shorthandMethod = attrClass switch
+        // Check for HTTP method attributes [Get], [Post], [Put], [Delete], [Patch]
+        var derivedMethod = attrClass switch
         {
             WellKnownTypes.GetAttribute => "GET",
             WellKnownTypes.PostAttribute => "POST",
@@ -152,10 +153,10 @@ public sealed partial class ErrorOrEndpointGenerator
             _ => null
         };
 
-        if (shorthandMethod is null)
+        if (derivedMethod is null)
             return false;
 
-        httpMethod = shorthandMethod;
+        httpMethod = derivedMethod;
         // Pattern comes from first constructor argument, defaults to "/"
         pattern = attr.ConstructorArguments.Length > 0 &&
                   attr.ConstructorArguments[0].Value is string p &&
@@ -164,18 +165,6 @@ public sealed partial class ErrorOrEndpointGenerator
             : "/";
         return true;
     }
-
-
-
-    /// <summary>
-    ///     Result of extracting the ErrorOr return type, including SSE detection.
-    /// </summary>
-    private readonly record struct ErrorOrReturnTypeInfo(
-        string? SuccessTypeFqn,
-        bool IsAsync,
-        bool IsSse,
-        string? SseItemTypeFqn,
-        bool UsesSseItem);
 
     private static ErrorOrReturnTypeInfo ExtractErrorOrReturnType(ITypeSymbol returnType)
     {
@@ -268,7 +257,6 @@ public sealed partial class ErrorOrEndpointGenerator
         errorOrType = named;
         return true;
     }
-
 
 
     private static EquatableArray<int> InferErrorTypesFromMethod(GeneratorAttributeSyntaxContext ctx,
@@ -393,10 +381,6 @@ public sealed partial class ErrorOrEndpointGenerator
         return new EquatableArray<int>([.. array]);
     }
 
-
-
-    private static readonly char[] s_routeSeparators = [':', '=', '?'];
-
     private static ImmutableHashSet<string> ExtractRouteParameters(string pattern)
     {
         if (string.IsNullOrWhiteSpace(pattern))
@@ -419,37 +403,6 @@ public sealed partial class ErrorOrEndpointGenerator
 
         return builder.ToImmutable();
     }
-
-#pragma warning disable EPS06
-    private static (string Name, int NextIndex) TryExtractNextRouteParam(ReadOnlySpan<char> span, int index)
-    {
-        var start = span[index..].IndexOf('{');
-        if (start < 0)
-            return (string.Empty, -1);
-
-        start += index;
-        var end = span[(start + 1)..].IndexOf('}');
-        if (end < 0)
-            return (string.Empty, -1);
-
-        end += start + 1;
-        var token = span[(start + 1)..end];
-        var name = token.IsEmpty ? string.Empty : ExtractRouteParameterName(token).ToString();
-
-        return (name, end + 1);
-    }
-
-    private static ReadOnlySpan<char> ExtractRouteParameterName(ReadOnlySpan<char> token)
-    {
-        var name = token;
-        var separatorIndex = name.IndexOfAny(s_routeSeparators);
-        if (separatorIndex >= 0)
-            name = name[..separatorIndex];
-
-        return name.TrimStart('*');
-    }
-#pragma warning restore EPS06
-
 
 
     private static RoutePrimitiveKind? TryGetRoutePrimitiveKind(ITypeSymbol type)
@@ -487,7 +440,6 @@ public sealed partial class ErrorOrEndpointGenerator
             _ => null
         };
     }
-
 
 
     /// <summary>
@@ -641,7 +593,6 @@ public sealed partial class ErrorOrEndpointGenerator
     }
 
 
-
     private static ParameterBindingResult BindParameters(
         IMethodSymbol method,
         ImmutableHashSet<string> routeParameters,
@@ -660,7 +611,8 @@ public sealed partial class ErrorOrEndpointGenerator
         }
 
         var hasBody = metas.Any(static m => m.HasFromBody);
-        var hasForm = metas.Any(static m => m.HasFromForm || m.IsFormFile || m.IsFormFileCollection || m.IsFormCollection);
+        var hasForm = metas.Any(static m =>
+            m.HasFromForm || m.IsFormFile || m.IsFormFileCollection || m.IsFormCollection);
         var hasStream = metas.Any(static m => m.IsStream || m.IsPipeReader);
 
         var bodySourceCount = (hasBody ? 1 : 0) + (hasForm ? 1 : 0) + (hasStream ? 1 : 0);
@@ -1071,8 +1023,10 @@ public sealed partial class ErrorOrEndpointGenerator
                 diagnostics.Add(EndpointDiagnostic.Create(
                     DiagnosticDescriptors.FormFileNotNullable, meta.Symbol, meta.Name, method.Name));
             }
+
             return ParameterSuccess(in meta, EndpointParameterSource.FormFile, formName: meta.Name);
         }
+
         if (meta.IsFormFileCollection)
             return ParameterSuccess(in meta, EndpointParameterSource.FormFiles, formName: meta.Name);
 
@@ -1085,6 +1039,7 @@ public sealed partial class ErrorOrEndpointGenerator
                     DiagnosticDescriptors.FormCollectionRequiresAttribute, meta.Symbol, meta.Name, method.Name));
                 return ParameterClassificationResult.Error;
             }
+
             // With [FromForm], IFormCollection binds to the raw form data
             return ParameterSuccess(in meta, EndpointParameterSource.FormCollection, formName: meta.FormName);
         }
@@ -1195,6 +1150,7 @@ public sealed partial class ErrorOrEndpointGenerator
                 diagnostics.Add(EndpointDiagnostic.Create(
                     DiagnosticDescriptors.FormFileNotNullable, meta.Symbol, meta.Name, method.Name));
             }
+
             return ParameterSuccess(in meta, EndpointParameterSource.FormFile, formName: meta.FormName);
         }
 
@@ -1369,11 +1325,51 @@ public sealed partial class ErrorOrEndpointGenerator
     }
 
 
+    /// <summary>
+    ///     Result of extracting the ErrorOr return type, including SSE detection.
+    /// </summary>
+    private readonly record struct ErrorOrReturnTypeInfo(
+        string? SuccessTypeFqn,
+        bool IsAsync,
+        bool IsSse,
+        string? SseItemTypeFqn,
+        bool UsesSseItem);
+
+
     private readonly record struct ParameterClassificationResult(bool IsError, EndpointParameter Parameter)
     {
         public static readonly ParameterClassificationResult Error = new(true, default);
     }
 
+#pragma warning disable EPS06
+    private static (string Name, int NextIndex) TryExtractNextRouteParam(ReadOnlySpan<char> span, int index)
+    {
+        var start = span[index..].IndexOf('{');
+        if (start < 0)
+            return (string.Empty, -1);
+
+        start += index;
+        var end = span[(start + 1)..].IndexOf('}');
+        if (end < 0)
+            return (string.Empty, -1);
+
+        end += start + 1;
+        var token = span[(start + 1)..end];
+        var name = token.IsEmpty ? string.Empty : ExtractRouteParameterName(token).ToString();
+
+        return (name, end + 1);
+    }
+
+    private static ReadOnlySpan<char> ExtractRouteParameterName(ReadOnlySpan<char> token)
+    {
+        var name = token;
+        var separatorIndex = name.IndexOfAny(s_routeSeparators);
+        if (separatorIndex >= 0)
+            name = name[..separatorIndex];
+
+        return name.TrimStart('*');
+    }
+#pragma warning restore EPS06
 }
 
 internal readonly record struct ParameterBindingResult(bool IsValid, ImmutableArray<EndpointParameter> Parameters)

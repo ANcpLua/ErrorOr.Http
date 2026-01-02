@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -22,6 +21,84 @@ namespace ErrorOr.Http.Generators;
 #pragma warning restore RS1041
 public sealed partial class ErrorOrEndpointGenerator : IIncrementalGenerator
 {
+    private static IncrementalValuesProvider<EndpointData> CreateAttributeProvider(
+        IncrementalGeneratorInitializationContext context,
+        string attributeName)
+    {
+        return context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                attributeName,
+                static (n, _) => n is MethodDeclarationSyntax,
+                static (ctx, _) => ExtractEndpointData(ctx));
+    }
+
+    private static void EmitAttributeDefinition(IncrementalGeneratorPostInitializationContext context)
+    {
+        context.AddSource("ErrorOrEndpointAttribute.g.cs", SourceText.From("""
+                                                                           using System;
+
+                                                                           namespace ErrorOr.Http
+                                                                           {
+                                                                               /// <summary>
+                                                                               /// Base class for HTTP endpoint attributes.
+                                                                               /// </summary>
+                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+                                                                               public abstract class ErrorOrEndpointAttribute : Attribute
+                                                                               {
+                                                                                   protected ErrorOrEndpointAttribute(string httpMethod, string pattern = "/")
+                                                                                   {
+                                                                                       HttpMethod = httpMethod;
+                                                                                       Pattern = pattern;
+                                                                                   }
+
+                                                                                   public string HttpMethod { get; }
+                                                                                   public string Pattern { get; }
+                                                                               }
+
+                                                                               /// <summary>HTTP GET endpoint.</summary>
+                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+                                                                               public sealed class GetAttribute : ErrorOrEndpointAttribute
+                                                                               {
+                                                                                   public GetAttribute(string pattern = "/") : base("GET", pattern) { }
+                                                                               }
+
+                                                                               /// <summary>HTTP POST endpoint.</summary>
+                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+                                                                               public sealed class PostAttribute : ErrorOrEndpointAttribute
+                                                                               {
+                                                                                   public PostAttribute(string pattern = "/") : base("POST", pattern) { }
+                                                                               }
+
+                                                                               /// <summary>HTTP PUT endpoint.</summary>
+                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+                                                                               public sealed class PutAttribute : ErrorOrEndpointAttribute
+                                                                               {
+                                                                                   public PutAttribute(string pattern = "/") : base("PUT", pattern) { }
+                                                                               }
+
+                                                                               /// <summary>HTTP DELETE endpoint.</summary>
+                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+                                                                               public sealed class DeleteAttribute : ErrorOrEndpointAttribute
+                                                                               {
+                                                                                   public DeleteAttribute(string pattern = "/") : base("DELETE", pattern) { }
+                                                                               }
+
+                                                                               /// <summary>HTTP PATCH endpoint.</summary>
+                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+                                                                               public sealed class PatchAttribute : ErrorOrEndpointAttribute
+                                                                               {
+                                                                                   public PatchAttribute(string pattern = "/") : base("PATCH", pattern) { }
+                                                                               }
+                                                                           }
+                                                                           """, Encoding.UTF8));
+    }
+
+    private static class TrackingNames
+    {
+        public const string EndpointMethods = nameof(EndpointMethods);
+        public const string EndpointDescriptors = nameof(EndpointDescriptors);
+        public const string EndpointCollection = nameof(EndpointCollection);
+    }
     // Suppress EPS06: IncrementalValuesProvider is a struct with fluent API designed for method chaining
 #pragma warning disable EPS06
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -93,83 +170,4 @@ public sealed partial class ErrorOrEndpointGenerator : IIncrementalGenerator
             static (spc, diagnostic) => spc.ReportDiagnostic(diagnostic.ToDiagnostic()));
     }
 #pragma warning restore EPS06
-
-    private static IncrementalValuesProvider<EndpointData> CreateAttributeProvider(
-        IncrementalGeneratorInitializationContext context,
-        string attributeName)
-    {
-        return context.SyntaxProvider
-            .ForAttributeWithMetadataName(
-                attributeName,
-                static (n, _) => n is MethodDeclarationSyntax,
-                static (ctx, _) => ExtractEndpointData(ctx));
-    }
-
-    private static void EmitAttributeDefinition(IncrementalGeneratorPostInitializationContext context)
-    {
-        context.AddSource("ErrorOrEndpointAttribute.g.cs", SourceText.From("""
-                                                                           using System;
-
-                                                                           namespace ErrorOr.Http
-                                                                           {
-                                                                               /// <summary>
-                                                                               /// Base attribute for HTTP endpoints. Prefer shorthand: [Get], [Post], [Put], [Delete], [Patch].
-                                                                               /// </summary>
-                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-                                                                               public class ErrorOrEndpointAttribute : Attribute
-                                                                               {
-                                                                                   public ErrorOrEndpointAttribute(string httpMethod, string pattern = "/")
-                                                                                   {
-                                                                                       HttpMethod = httpMethod;
-                                                                                       Pattern = pattern;
-                                                                                   }
-
-                                                                                   public string HttpMethod { get; }
-                                                                                   public string Pattern { get; }
-                                                                               }
-
-                                                                               /// <summary>HTTP GET endpoint.</summary>
-                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-                                                                               public sealed class GetAttribute : ErrorOrEndpointAttribute
-                                                                               {
-                                                                                   public GetAttribute(string pattern = "/") : base("GET", pattern) { }
-                                                                               }
-
-                                                                               /// <summary>HTTP POST endpoint.</summary>
-                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-                                                                               public sealed class PostAttribute : ErrorOrEndpointAttribute
-                                                                               {
-                                                                                   public PostAttribute(string pattern = "/") : base("POST", pattern) { }
-                                                                               }
-
-                                                                               /// <summary>HTTP PUT endpoint.</summary>
-                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-                                                                               public sealed class PutAttribute : ErrorOrEndpointAttribute
-                                                                               {
-                                                                                   public PutAttribute(string pattern = "/") : base("PUT", pattern) { }
-                                                                               }
-
-                                                                               /// <summary>HTTP DELETE endpoint.</summary>
-                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-                                                                               public sealed class DeleteAttribute : ErrorOrEndpointAttribute
-                                                                               {
-                                                                                   public DeleteAttribute(string pattern = "/") : base("DELETE", pattern) { }
-                                                                               }
-
-                                                                               /// <summary>HTTP PATCH endpoint.</summary>
-                                                                               [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-                                                                               public sealed class PatchAttribute : ErrorOrEndpointAttribute
-                                                                               {
-                                                                                   public PatchAttribute(string pattern = "/") : base("PATCH", pattern) { }
-                                                                               }
-                                                                           }
-                                                                           """, Encoding.UTF8));
-    }
-
-    private static class TrackingNames
-    {
-        public const string EndpointMethods = nameof(EndpointMethods);
-        public const string EndpointDescriptors = nameof(EndpointDescriptors);
-        public const string EndpointCollection = nameof(EndpointCollection);
-    }
 }

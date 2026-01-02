@@ -805,7 +805,8 @@ public sealed partial class ErrorOrEndpointGenerator
         code.AppendLine("            if (hasValidation)");
         code.AppendLine("            {");
         code.AppendLine("                // Build dictionary without LINQ allocation");
-        code.AppendLine("                var modelStateDictionary = new global::System.Collections.Generic.Dictionary<string, string[]>();");
+        code.AppendLine(
+            "                var modelStateDictionary = new global::System.Collections.Generic.Dictionary<string, string[]>();");
         code.AppendLine("                for (var i = 0; i < errors.Count; i++)");
         code.AppendLine("                {");
         code.AppendLine("                    var error = errors[i];");
@@ -942,5 +943,4 @@ public sealed partial class ErrorOrEndpointGenerator
             code.AppendLine("            }");
         }
     }
-
 }

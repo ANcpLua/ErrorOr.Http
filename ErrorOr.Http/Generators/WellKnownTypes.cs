@@ -6,7 +6,6 @@ namespace ErrorOr.Http.Generators;
 /// </summary>
 internal static class WellKnownTypes
 {
-
     public const string ErrorOrEndpointAttribute = "ErrorOr.Http.ErrorOrEndpointAttribute";
     public const string GetAttribute = "ErrorOr.Http.GetAttribute";
     public const string PostAttribute = "ErrorOr.Http.PostAttribute";

@@ -29,7 +29,7 @@ public class GeneratorCachingTests
 
                  public static class Endpoints
                  {
-                     [ErrorOrEndpoint("GET", "/users/{id}")]
+                     [Get( "/users/{id}")]
                      public static ErrorOr<User> GetUser(int id) => id is 0
                          ? Error.NotFound("User.NotFound", "User not found")
                          : new User(id, "Test");
@@ -47,7 +47,7 @@ public class GeneratorCachingTests
 
                  public static class Endpoints
                  {
-                     [ErrorOrEndpoint("GET", "/test")]
+                     [Get( "/test")]
                      public static ErrorOr<string> Get() => "ok";
                  }
                  """.ShouldRegenerate<ErrorOrEndpointGenerator>($$"""
@@ -55,10 +55,10 @@ public class GeneratorCachingTests
 
                                                                   public static class Endpoints
                                                                   {
-                                                                      [ErrorOrEndpoint("GET", "/test")]
+                                                                      [Get( "/test")]
                                                                       public static ErrorOr<string> Get() => "ok";
 
-                                                                      [ErrorOrEndpoint("POST", "/test")]
+                                                                      [Post( "/test")]
                                                                       public static ErrorOr<string> Create(string input) => string.IsNullOrEmpty(input)
                                                                           ? Error.Validation("Input.Required", "Input required")
                                                                           : input;
@@ -74,7 +74,7 @@ public class GeneratorCachingTests
 
                  public static class Endpoints
                  {
-                     [ErrorOrEndpoint("GET", "/stable")]
+                     [Get( "/stable")]
                      public static ErrorOr<int> Get() => 42;
                  }
                  """.ShouldNotRegenerate<ErrorOrEndpointGenerator>(UnrelatedFile);

@@ -38,7 +38,7 @@ public class ErrorOrEndpointTests : IClassFixture<WebApplicationFactory<Program>
 
         var todo = await response.Content.ReadFromJsonAsync<TodoDto>();
         todo.Should().NotBeNull();
-        todo!.Id.Should().Be(1);
+        todo.Id.Should().Be(1);
     }
 
 
@@ -62,7 +62,7 @@ public class ErrorOrEndpointTests : IClassFixture<WebApplicationFactory<Program>
 
         var todo = await response.Content.ReadFromJsonAsync<TodoDto>();
         todo.Should().NotBeNull();
-        todo!.Title.Should().Be("New Todo");
+        todo.Title.Should().Be("New Todo");
     }
 
 

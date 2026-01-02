@@ -3,7 +3,8 @@
 [![NuGet](https://img.shields.io/nuget/v/ErrorOr.Http?label=NuGet&color=0891B2)](https://www.nuget.org/packages/ErrorOr.Http/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Source generator for ASP.NET Core Minimal APIs that transforms `ErrorOr<T>` handlers into type-safe endpoints with automatic ProblemDetails responses and OpenAPI metadata.
+Source generator for ASP.NET Core Minimal APIs that transforms `ErrorOr<T>` handlers into type-safe endpoints with
+automatic ProblemDetails responses and OpenAPI metadata.
 
 ## Features
 
@@ -223,21 +224,21 @@ The generator creates `ErrorOrJsonContext.suggested.cs` in `obj/Generated/` with
 
 ## Diagnostics
 
-| Code   | Severity | Description |
-|--------|----------|-------------|
-| EOE003 | Error    | Unsupported parameter type |
-| EOE004 | Error    | Ambiguous parameter requires explicit binding attribute |
-| EOE005 | Error    | Multiple `[FromBody]` parameters |
+| Code   | Severity | Description                                                |
+|--------|----------|------------------------------------------------------------|
+| EOE003 | Error    | Unsupported parameter type                                 |
+| EOE004 | Error    | Ambiguous parameter requires explicit binding attribute    |
+| EOE005 | Error    | Multiple `[FromBody]` parameters                           |
 | EOE006 | Error    | Multiple body sources (`[FromBody]`, `[FromForm]`, Stream) |
-| EOE007 | Error    | Multiple `[FromForm]` DTO parameters |
-| EOE008 | Error    | Unsupported `[FromForm]` DTO shape |
-| EOE009 | Warning  | Non-nullable `IFormFile` may be missing at runtime |
-| EOE010 | Info     | Form endpoint may receive non-form requests |
-| EOE011 | Error    | Multiple `[FromForm]` complex type parameters |
-| EOE013 | Error    | `IFormCollection` requires explicit `[FromForm]` |
-| EOE014 | Error    | Type cannot be form-bound |
-| EOE021 | Warning  | Error type not documented in OpenAPI metadata |
-| EOE022 | Warning  | Type not registered in `JsonSerializerContext` |
+| EOE007 | Error    | Multiple `[FromForm]` DTO parameters                       |
+| EOE008 | Error    | Unsupported `[FromForm]` DTO shape                         |
+| EOE009 | Warning  | Non-nullable `IFormFile` may be missing at runtime         |
+| EOE010 | Info     | Form endpoint may receive non-form requests                |
+| EOE011 | Error    | Multiple `[FromForm]` complex type parameters              |
+| EOE013 | Error    | `IFormCollection` requires explicit `[FromForm]`           |
+| EOE014 | Error    | Type cannot be form-bound                                  |
+| EOE021 | Warning  | Error type not documented in OpenAPI metadata              |
+| EOE022 | Warning  | Type not registered in `JsonSerializerContext`             |
 
 ## Requirements
 

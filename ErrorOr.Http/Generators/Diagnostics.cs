@@ -5,8 +5,8 @@ using Microsoft.CodeAnalysis.Text;
 namespace ErrorOr.Http.Generators;
 
 /// <summary>
-/// Diagnostic descriptors for ErrorOr.Http source generator.
-/// All diagnostics use the "EOE" prefix (ErrorOr Endpoint).
+///     Diagnostic descriptors for ErrorOr.Http source generator.
+///     All diagnostics use the "EOE" prefix (ErrorOr Endpoint).
 /// </summary>
 internal static class DiagnosticDescriptors
 {

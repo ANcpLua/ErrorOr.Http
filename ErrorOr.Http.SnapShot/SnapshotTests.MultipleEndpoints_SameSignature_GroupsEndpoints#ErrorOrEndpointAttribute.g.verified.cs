@@ -4,12 +4,12 @@ using System;
 namespace ErrorOr.Http
 {
     /// <summary>
-    /// Base attribute for HTTP endpoints. Prefer shorthand: [Get], [Post], [Put], [Delete], [Patch].
+    /// Base class for HTTP endpoint attributes.
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-    public class ErrorOrEndpointAttribute : Attribute
+    public abstract class ErrorOrEndpointAttribute : Attribute
     {
-        public ErrorOrEndpointAttribute(string httpMethod, string pattern = "/")
+        protected ErrorOrEndpointAttribute(string httpMethod, string pattern = "/")
         {
             HttpMethod = httpMethod;
             Pattern = pattern;

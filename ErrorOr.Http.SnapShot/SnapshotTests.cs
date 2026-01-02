@@ -43,7 +43,7 @@ public class SnapshotTests
 
                                 public static class Endpoints
                                 {
-                                    [ErrorOrEndpoint("GET", "/users/{id}")]
+                                    [Get( "/users/{id}")]
                                     public static ErrorOr<User> GetUser(int id) => id switch
                                     {
                                         < 0 => Error.Validation("User.InvalidId", "Invalid ID"),
@@ -67,7 +67,7 @@ public class SnapshotTests
 
                                 public static class Endpoints
                                 {
-                                    [ErrorOrEndpoint("GET", "/users/{id}/orders")]
+                                    [Get( "/users/{id}/orders")]
                                     public static async Task<ErrorOr<Order>> GetOrders(int id)
                                     {
                                         await Task.Delay(1);
@@ -91,7 +91,7 @@ public class SnapshotTests
 
                                 public static class Endpoints
                                 {
-                                    [ErrorOrEndpoint("GET", "/health")]
+                                    [Get( "/health")]
                                     public static ErrorOr<string> GetHealth() =>
                                         Error.Unexpected("Health.Failed", "Service unavailable");
                                 }
@@ -108,8 +108,8 @@ public class SnapshotTests
 
                                 public static class Endpoints
                                 {
-                                    [ErrorOrEndpoint("GET", "/a/{id}")]
-                                    [ErrorOrEndpoint("GET", "/b/{id}")]
+                                    [Get( "/a/{id}")]
+                                    [Get( "/b/{id}")]
                                     public static ErrorOr<User> GetUser(int id) => id is 0
                                         ? Error.NotFound("User.NotFound", "User not found")
                                         : new User(id, "Test");
@@ -129,12 +129,12 @@ public class SnapshotTests
 
                                 public static class Endpoints
                                 {
-                                    [ErrorOrEndpoint("DELETE", "/users/{id}")]
+                                    [Delete( "/users/{id}")]
                                     public static ErrorOr<Deleted> DeleteUser(int id) => id is 0
                                         ? Error.NotFound("User.NotFound", "User not found")
                                         : Result.Deleted;
 
-                                    [ErrorOrEndpoint("POST", "/users/{id}/activate")]
+                                    [Post( "/users/{id}/activate")]
                                     public static ErrorOr<Success> ActivateUser(int id) => id is 0
                                         ? Error.Validation("User.Invalid", "Invalid ID")
                                         : Result.Success;
@@ -154,7 +154,7 @@ public class SnapshotTests
 
                                 public static class Endpoints
                                 {
-                                    [ErrorOrEndpoint("GET", "/search")]
+                                    [Get( "/search")]
                                     public static ErrorOr<string> Search([AsParameters] SearchRequest request) =>
                                         $"Query: {request.Query}, Page: {request.Page}, Header: {request.ApiKey}";
                                 }
@@ -178,7 +178,7 @@ public class SnapshotTests
 
                                 public static class Endpoints
                                 {
-                                    [ErrorOrEndpoint("GET", "/tags")]
+                                    [Get( "/tags")]
                                     public static ErrorOr<string> GetTags(
                                         [FromHeader] string region,
                                         [FromQuery] List<int> ids,
@@ -203,7 +203,7 @@ public class SnapshotTests
 
                      public static class Handlers
                      {
-                         [ErrorOrEndpoint("POST", "/upload")]
+                         [Post( "/upload")]
                          public static ErrorOr<Success> Upload(
                              [FromForm] string title,
                              [FromForm] int version,
@@ -218,41 +218,41 @@ public class SnapshotTests
     [Fact]
     public Task FormBinding_IFormCollection_Explicit()
     {
-        var source = """
-                     using ErrorOr;
-                     using ErrorOr.Http;
-                     using Microsoft.AspNetCore.Http;
-                     using Microsoft.AspNetCore.Mvc;
+        const string Source = """
+                              using ErrorOr;
+                              using ErrorOr.Http;
+                              using Microsoft.AspNetCore.Http;
+                              using Microsoft.AspNetCore.Mvc;
 
-                     public static class Handlers
-                     {
-                         [ErrorOrEndpoint("POST", "/webhook")]
-                         public static ErrorOr<Success> Webhook([FromForm] IFormCollection formData)
-                             => Result.Success;
-                     }
-                     """;
+                              public static class Handlers
+                              {
+                                  [Post( "/webhook")]
+                                  public static ErrorOr<Success> Webhook([FromForm] IFormCollection formData)
+                                      => Result.Success;
+                              }
+                              """;
 
-        return VerifyGenerator(source);
+        return VerifyGenerator(Source);
     }
 
     [Fact]
     public Task FormBinding_IFormCollection_ImplicitError()
     {
         // IFormCollection without [FromForm] should emit EOE013 diagnostic
-        var source = """
-                     using ErrorOr;
-                     using ErrorOr.Http;
-                     using Microsoft.AspNetCore.Http;
+        const string Source = """
+                              using ErrorOr;
+                              using ErrorOr.Http;
+                              using Microsoft.AspNetCore.Http;
 
-                     public static class Handlers
-                     {
-                         [ErrorOrEndpoint("POST", "/webhook")]
-                         public static ErrorOr<Success> Webhook(IFormCollection formData)
-                             => Result.Success;
-                     }
-                     """;
+                              public static class Handlers
+                              {
+                                  [Post( "/webhook")]
+                                  public static ErrorOr<Success> Webhook(IFormCollection formData)
+                                      => Result.Success;
+                              }
+                              """;
 
-        return VerifyGenerator(source);
+        return VerifyGenerator(Source);
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public class SnapshotTests
 
                      public static class Handlers
                      {
-                         [ErrorOrEndpoint("POST", "/upload")]
+                         [Post( "/upload")]
                          public static ErrorOr<Success> Upload(IFormFile document)
                              => Result.Success;
                      }

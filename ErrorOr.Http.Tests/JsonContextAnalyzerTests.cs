@@ -30,7 +30,7 @@ public class JsonContextAnalyzerTests
 
                public static class Endpoints
                {
-                   [ErrorOrEndpoint("GET", "/test")]
+                   [Get( "/test")]
                    public static ErrorOr<string> Get() => "ok";
                }
                """.ShouldHaveNoDiagnostics<ErrorOrEndpointGenerator>();
@@ -47,7 +47,7 @@ public class JsonContextAnalyzerTests
 
                  public static class Endpoints
                  {
-                     [ErrorOrEndpoint("GET", "/users")]
+                     [Get( "/users")]
                      public static ErrorOr<User> GetUser() => new User("Test");
                  }
 
@@ -74,7 +74,7 @@ public class JsonContextAnalyzerTests
 
                  public static class Endpoints
                  {
-                     [ErrorOrEndpoint("GET", "/users")]
+                     [Get( "/users")]
                      public static ErrorOr<User> GetUser() => new User("Test");
                  }
 
@@ -100,7 +100,7 @@ public class JsonContextAnalyzerTests
 
                  public static class Endpoints
                  {
-                     [ErrorOrEndpoint("POST", "/users")]
+                     [Post( "/users")]
                      public static ErrorOr<Created> CreateUser([FromBody] CreateUserRequest request)
                          => Result.Created;
                  }
@@ -127,7 +127,7 @@ public class JsonContextAnalyzerTests
 
                  public static class Endpoints
                  {
-                     [ErrorOrEndpoint("DELETE", "/users/{id}")]
+                     [Delete( "/users/{id}")]
                      public static ErrorOr<Deleted> Delete(int id) => Result.Deleted;
                  }
 
@@ -150,10 +150,10 @@ public class JsonContextAnalyzerTests
 
                  public static class Endpoints
                  {
-                     [ErrorOrEndpoint("GET", "/users")]
+                     [Get( "/users")]
                      public static ErrorOr<User[]> GetUsers() => new[] { new User("Test") };
 
-                     [ErrorOrEndpoint("GET", "/products")]
+                     [Get( "/products")]
                      public static ErrorOr<Product> GetProduct() => new Product("Widget");
                  }
 

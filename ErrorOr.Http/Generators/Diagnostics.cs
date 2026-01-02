@@ -40,6 +40,38 @@ internal static class DiagnosticDescriptors
         "Usage",
         DiagnosticSeverity.Error,
         true);
+
+    public static readonly DiagnosticDescriptor MultipleFromFormParameters = new(
+        "EOE007",
+        "Multiple [FromForm] parameters",
+        "Endpoint '{0}' has multiple [FromForm] parameters. Only one is allowed.",
+        "Usage",
+        DiagnosticSeverity.Error,
+        true);
+
+    public static readonly DiagnosticDescriptor UnsupportedFormDtoShape = new(
+        "EOE008",
+        "Unsupported [FromForm] DTO shape",
+        "[FromForm] parameter '{0}' on '{1}' has unsupported shape: {2}",
+        "Usage",
+        DiagnosticSeverity.Error,
+        true);
+
+    public static readonly DiagnosticDescriptor FormFileNotNullable = new(
+        "EOE009",
+        "IFormFile nullability",
+        "IFormFile parameter '{0}' is non-nullable but file may be missing. Use IFormFile? for optional files.",
+        "Usage",
+        DiagnosticSeverity.Warning,
+        true);
+
+    public static readonly DiagnosticDescriptor FormContentTypeRequired = new(
+        "EOE010",
+        "Form content type required",
+        "Endpoint '{0}' uses form binding but may receive non-form requests at runtime",
+        "Usage",
+        DiagnosticSeverity.Info,
+        true);
 }
 
 #endregion

@@ -43,8 +43,8 @@ internal static class DiagnosticDescriptors
 
     public static readonly DiagnosticDescriptor MultipleFromFormParameters = new(
         "EOE007",
-        "Multiple [FromForm] parameters",
-        "Endpoint '{0}' has multiple [FromForm] parameters. Only one is allowed.",
+        "Multiple [FromForm] DTOs",
+        "Endpoint '{0}' has multiple [FromForm] DTO parameters. Only one structured form DTO is allowed per endpoint.",
         "Usage",
         DiagnosticSeverity.Error,
         true);

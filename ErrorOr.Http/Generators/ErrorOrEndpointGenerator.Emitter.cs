@@ -185,6 +185,18 @@ public sealed partial class ErrorOrEndpointGenerator
         code.AppendLine(
             $"            .WithMetadata(new global::Microsoft.AspNetCore.Http.TagsAttribute(\"{tagName}\"))");
 
+        // Add multipart/form-data accept metadata for form endpoints
+        var hasFormParams = ep.HandlerParameters.Items.Any(p =>
+            p.Source is EndpointParameterSource.Form or
+                        EndpointParameterSource.FormFile or
+                        EndpointParameterSource.FormFiles);
+
+        if (hasFormParams)
+        {
+            code.AppendLine(
+                "            .WithMetadata(new global::Microsoft.AspNetCore.Http.Metadata.AcceptsMetadata(new[] { \"multipart/form-data\" }))");
+        }
+
         if (ep.IsObsolete)
         {
             var msg = ep.ObsoleteMessage is null ? "" : $"\"{ep.ObsoleteMessage}\"";

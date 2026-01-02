@@ -447,8 +447,15 @@ public sealed partial class ErrorOrEndpointGenerator
             return ParameterBindingResult.Invalid;
         }
 
-        // Check for multiple [FromForm] parameters
-        if (metas.Count(static m => m.HasFromForm) > 1)
+        // Check for multiple [FromForm] DTO parameters (multiple primitives are allowed)
+        var fromFormDtoCount = metas.Count(static m =>
+            m.HasFromForm &&
+            m.RouteKind is null &&  // Not a primitive
+            !(m.IsCollection && m.CollectionItemPrimitiveKind is not null) &&  // Not a collection of primitives
+            !m.IsFormFile &&
+            !m.IsFormFileCollection);
+
+        if (fromFormDtoCount > 1)
         {
             diagnostics.Add(
                 EndpointDiagnostic.Create(DiagnosticDescriptors.MultipleFromFormParameters, method, method.Name));
@@ -497,10 +504,9 @@ public sealed partial class ErrorOrEndpointGenerator
         var (isNullable, isNonNullableValueType) = GetParameterNullability(type, parameter.NullableAnnotation);
         var (isCollection, itemType, itemPrimitiveKind) = AnalyzeCollectionType(type);
 
-        // Detect IFormFile and IFormFileCollection
-        var isFormFile = typeFqn == "global::Microsoft.AspNetCore.Http.IFormFile";
-        var isFormFileCollection = typeFqn == "global::Microsoft.AspNetCore.Http.IFormFileCollection" ||
-                                   IsFormFileReadOnlyList(type);
+        // Detect IFormFile and IFormFileCollection (use symbol check first, then fallback to string)
+        var isFormFile = IsFormFileType(type, typeFqn, knownSymbols);
+        var isFormFileCollection = IsFormFileCollectionType(type, typeFqn, knownSymbols);
 
         return new ParameterMeta(
             index, parameter, parameter.Name, typeFqn, TryGetRoutePrimitiveKind(type),
@@ -516,7 +522,37 @@ public sealed partial class ErrorOrEndpointGenerator
             hasFromForm, formName, isFormFile, isFormFileCollection);
     }
 
-    private static bool IsFormFileReadOnlyList(ITypeSymbol type)
+    private static bool IsFormFileType(ITypeSymbol type, string typeFqn, KnownSymbols knownSymbols)
+    {
+        // Symbol-based check (most reliable)
+        if (knownSymbols.IFormFile is not null &&
+            SymbolEqualityComparer.Default.Equals(type, knownSymbols.IFormFile))
+            return true;
+
+        // String-based fallback (handles different compilation contexts)
+        return typeFqn is "global::Microsoft.AspNetCore.Http.IFormFile"
+            or "Microsoft.AspNetCore.Http.IFormFile"
+            or "IFormFile";
+    }
+
+    private static bool IsFormFileCollectionType(ITypeSymbol type, string typeFqn, KnownSymbols knownSymbols)
+    {
+        // Symbol-based check
+        if (knownSymbols.IFormFileCollection is not null &&
+            SymbolEqualityComparer.Default.Equals(type, knownSymbols.IFormFileCollection))
+            return true;
+
+        // String-based fallback
+        if (typeFqn is "global::Microsoft.AspNetCore.Http.IFormFileCollection"
+            or "Microsoft.AspNetCore.Http.IFormFileCollection"
+            or "IFormFileCollection")
+            return true;
+
+        // Check for IReadOnlyList<IFormFile>
+        return IsFormFileReadOnlyList(type, knownSymbols);
+    }
+
+    private static bool IsFormFileReadOnlyList(ITypeSymbol type, KnownSymbols knownSymbols)
     {
         if (type is not INamedTypeSymbol { IsGenericType: true } named)
             return false;
@@ -525,8 +561,9 @@ public sealed partial class ErrorOrEndpointGenerator
         if (origin != "System.Collections.Generic.IReadOnlyList<T>")
             return false;
 
-        var itemFqn = named.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        return itemFqn == "global::Microsoft.AspNetCore.Http.IFormFile";
+        var itemType = named.TypeArguments[0];
+        var itemFqn = itemType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        return IsFormFileType(itemType, itemFqn, knownSymbols);
     }
 
     private static (bool IsCollection, ITypeSymbol? ItemType, RoutePrimitiveKind? Kind) AnalyzeCollectionType(

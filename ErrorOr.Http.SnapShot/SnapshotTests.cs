@@ -196,6 +196,29 @@ public class SnapshotTests
         return VerifyGenerator(Source);
     }
 
+    [Fact]
+    public Task FormBinding_PrimitiveAndFile()
+    {
+        var source = """
+            using ErrorOr;
+            using ErrorOr.Http;
+            using Microsoft.AspNetCore.Http;
+            using Microsoft.AspNetCore.Mvc;
+
+            public static class Handlers
+            {
+                [ErrorOrEndpoint("POST", "/upload")]
+                public static ErrorOr<Success> Upload(
+                    [FromForm] string title,
+                    [FromForm] int version,
+                    IFormFile document)
+                    => Result.Success;
+            }
+            """;
+
+        return VerifyGenerator(source);
+    }
+
     private static async Task VerifyGenerator(string source)
     {
         var driver = CreateDriver();

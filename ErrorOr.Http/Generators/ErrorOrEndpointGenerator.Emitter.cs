@@ -219,6 +219,17 @@ public sealed partial class ErrorOrEndpointGenerator
         code.AppendLine($"        private static async Task Invoke_Ep{index}(HttpContext ctx)");
         code.AppendLine("        {");
 
+        // Check if any parameter requires form binding
+        var hasFormParams = ep.HandlerParameters.Items.Any(p =>
+            p.Source is EndpointParameterSource.Form or
+                        EndpointParameterSource.FormFile or
+                        EndpointParameterSource.FormFiles);
+
+        if (hasFormParams)
+        {
+            EmitFormContentTypeGuard(code);
+        }
+
         var args = new StringBuilder();
 
         for (var i = 0; i < ep.HandlerParameters.Items.Length; i++)
@@ -320,6 +331,18 @@ public sealed partial class ErrorOrEndpointGenerator
                 break;
             case EndpointParameterSource.CancellationToken:
                 code.AppendLine($"            var {paramName} = ctx.RequestAborted;");
+                break;
+            case EndpointParameterSource.Form:
+                if (param.Children.IsDefaultOrEmpty)
+                    EmitFormPrimitiveBinding(code, in param, paramName);
+                else
+                    EmitFormDtoBinding(code, in param, paramName);
+                break;
+            case EndpointParameterSource.FormFile:
+                EmitFormFileBinding(code, in param, paramName);
+                break;
+            case EndpointParameterSource.FormFiles:
+                EmitFormFilesBinding(code, in param, paramName);
                 break;
             default:
                 throw new InvalidOperationException($"Unknown parameter source: {param.Source}");
@@ -482,6 +505,174 @@ public sealed partial class ErrorOrEndpointGenerator
         code.AppendLine("                    return;");
         code.AppendLine("                }");
         code.AppendLine($"                {paramName} = {tempName};");
+        code.AppendLine("            }");
+    }
+
+    private static void EmitFormContentTypeGuard(StringBuilder code)
+    {
+        code.AppendLine("            if (!ctx.Request.HasFormContentType)");
+        code.AppendLine("            {");
+        code.AppendLine("                ctx.Response.StatusCode = 400;");
+        code.AppendLine("                return;");
+        code.AppendLine("            }");
+        code.AppendLine();
+        code.AppendLine("            var form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);");
+        code.AppendLine();
+    }
+
+    private static void EmitFormPrimitiveBinding(StringBuilder code, in EndpointParameter param, string paramName)
+    {
+        var fieldName = param.KeyName ?? param.Name;
+        var rawVar = $"{paramName}Raw";
+
+        code.AppendLine($"            {param.TypeFqn} {paramName};");
+        code.AppendLine($"            if (!form.TryGetValue(\"{fieldName}\", out var {rawVar}) || {rawVar}.Count == 0)");
+        code.AppendLine("            {");
+
+        if (param.IsNullable)
+        {
+            code.AppendLine($"                {paramName} = default;");
+        }
+        else
+        {
+            code.AppendLine("                ctx.Response.StatusCode = 400;");
+            code.AppendLine("                return;");
+        }
+
+        code.AppendLine("            }");
+        code.AppendLine("            else");
+        code.AppendLine("            {");
+
+        if (IsStringType(param.TypeFqn))
+        {
+            code.AppendLine($"                {paramName} = {rawVar}.ToString();");
+        }
+        else
+        {
+            var tempVar = $"{paramName}Temp";
+            var baseType = param.IsNullable ? param.TypeFqn.TrimEnd('?') : param.TypeFqn;
+            code.AppendLine($"                if (!{GetTryParseExpression(baseType, rawVar + ".ToString()", tempVar)})");
+            code.AppendLine("                {");
+            code.AppendLine("                    ctx.Response.StatusCode = 400;");
+            code.AppendLine("                    return;");
+            code.AppendLine("                }");
+            code.AppendLine($"                {paramName} = {tempVar};");
+        }
+
+        code.AppendLine("            }");
+    }
+
+    private static void EmitFormFileBinding(StringBuilder code, in EndpointParameter param, string paramName)
+    {
+        var fieldName = param.KeyName ?? param.Name;
+
+        code.AppendLine($"            var {paramName} = form.Files.GetFile(\"{fieldName}\");");
+
+        if (!param.IsNullable)
+        {
+            code.AppendLine($"            if ({paramName} is null)");
+            code.AppendLine("            {");
+            code.AppendLine("                ctx.Response.StatusCode = 400;");
+            code.AppendLine("                return;");
+            code.AppendLine("            }");
+        }
+    }
+
+    private static void EmitFormFilesBinding(StringBuilder code, in EndpointParameter param, string paramName)
+    {
+        var fieldName = param.KeyName ?? param.Name;
+
+        if (param.TypeFqn.Contains("IFormFileCollection"))
+        {
+            code.AppendLine($"            var {paramName} = form.Files;");
+        }
+        else
+        {
+            code.AppendLine($"            var {paramName} = form.Files.GetFiles(\"{fieldName}\");");
+        }
+    }
+
+    private static void EmitFormDtoBinding(StringBuilder code, in EndpointParameter param, string paramName)
+    {
+        // Emit binding for each child field
+        for (var i = 0; i < param.Children.Items.Length; i++)
+        {
+            var child = param.Children.Items[i];
+            var childVarName = $"{paramName}_f{i}";
+            EmitFormChildBinding(code, in child, childVarName);
+        }
+
+        // Construct the DTO
+        var args = string.Join(", ", param.Children.Items.Select((_, i) => $"{paramName}_f{i}"));
+        code.AppendLine($"            var {paramName} = new {param.TypeFqn}({args});");
+    }
+
+    private static void EmitFormChildBinding(StringBuilder code, in EndpointParameter param, string varName)
+    {
+        // Handle file types in DTOs
+        if (param.Source == EndpointParameterSource.FormFile)
+        {
+            var fieldName = param.KeyName ?? param.Name;
+            code.AppendLine($"            var {varName} = form.Files.GetFile(\"{fieldName}\");");
+            if (!param.IsNullable)
+            {
+                code.AppendLine($"            if ({varName} is null) {{ ctx.Response.StatusCode = 400; return; }}");
+            }
+            return;
+        }
+
+        if (param.Source == EndpointParameterSource.FormFiles)
+        {
+            var fieldName = param.KeyName ?? param.Name;
+            if (param.TypeFqn.Contains("IFormFileCollection"))
+            {
+                code.AppendLine($"            var {varName} = form.Files;");
+            }
+            else
+            {
+                code.AppendLine($"            var {varName} = form.Files.GetFiles(\"{fieldName}\");");
+            }
+            return;
+        }
+
+        // Primitive binding
+        var rawVar = $"{varName}Raw";
+        var fieldName2 = param.KeyName ?? param.Name;
+
+        code.AppendLine($"            {param.TypeFqn} {varName};");
+        code.AppendLine($"            if (!form.TryGetValue(\"{fieldName2}\", out var {rawVar}) || {rawVar}.Count == 0)");
+        code.AppendLine("            {");
+
+        if (param.IsNullable)
+        {
+            code.AppendLine($"                {varName} = default;");
+        }
+        else
+        {
+            code.AppendLine("                ctx.Response.StatusCode = 400;");
+            code.AppendLine("                return;");
+        }
+
+        code.AppendLine("            }");
+        code.AppendLine("            else");
+        code.AppendLine("            {");
+
+        if (IsStringType(param.TypeFqn))
+        {
+            code.AppendLine($"                {varName} = {rawVar}.ToString();");
+        }
+        else
+        {
+            var tempVar = $"{varName}Temp";
+            var baseType = param.IsNullable ? param.TypeFqn.TrimEnd('?') : param.TypeFqn;
+            code.AppendLine($"                if (!{GetTryParseExpression(baseType, rawVar + ".ToString()", tempVar)})");
+            code.AppendLine("                {");
+            code.AppendLine("                    ctx.Response.StatusCode = 400;");
+            code.AppendLine("                    return;");
+            code.AppendLine("                }");
+            code.AppendLine($"                {varName} = {tempVar};");
+        }
+
         code.AppendLine("            }");
     }
 

@@ -15,7 +15,10 @@ internal enum EndpointParameterSource
     KeyedService,
     AsParameters,
     HttpContext,
-    CancellationToken
+    CancellationToken,
+    Form,       // [FromForm] primitive or DTO
+    FormFile,   // IFormFile
+    FormFiles   // IFormFileCollection
 }
 
 internal readonly record struct EndpointParameter(
@@ -79,7 +82,11 @@ internal readonly record struct ParameterMeta(
     bool IsNonNullableValueType,
     bool IsCollection,
     string? CollectionItemTypeFqn,
-    RoutePrimitiveKind? CollectionItemPrimitiveKind);
+    RoutePrimitiveKind? CollectionItemPrimitiveKind,
+    bool HasFromForm,
+    string FormName,
+    bool IsFormFile,
+    bool IsFormFileCollection);
 
 internal enum RoutePrimitiveKind
 {

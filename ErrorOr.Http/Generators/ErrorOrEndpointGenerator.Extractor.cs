@@ -416,6 +416,7 @@ public sealed partial class ErrorOrEndpointGenerator
     private const string FromQueryAttrName = "Microsoft.AspNetCore.Mvc.FromQueryAttribute";
     private const string FromHeaderAttrName = "Microsoft.AspNetCore.Mvc.FromHeaderAttribute";
     private const string AsParametersAttrName = "Microsoft.AspNetCore.Http.AsParametersAttribute";
+    private const string FromFormAttrName = "Microsoft.AspNetCore.Mvc.FromFormAttribute";
 
     private static ParameterBindingResult BindParameters(
         IMethodSymbol method,
@@ -427,10 +428,30 @@ public sealed partial class ErrorOrEndpointGenerator
 
         var metas = BuildParameterMetas(method.Parameters, knownSymbols, diagnostics);
 
-        if (metas.Count(m => m.HasFromBody) > 1)
+        // Check for multiple [FromBody] parameters
+        if (metas.Count(static m => m.HasFromBody) > 1)
         {
             diagnostics.Add(
                 EndpointDiagnostic.Create(DiagnosticDescriptors.MultipleBodyParameters, method, method.Name));
+            return ParameterBindingResult.Invalid;
+        }
+
+        // Check for body + form conflict
+        var hasBody = metas.Any(static m => m.HasFromBody);
+        var hasForm = metas.Any(static m => m.HasFromForm || m.IsFormFile || m.IsFormFileCollection);
+
+        if (hasBody && hasForm)
+        {
+            diagnostics.Add(
+                EndpointDiagnostic.Create(DiagnosticDescriptors.MultipleBodySources, method, method.Name));
+            return ParameterBindingResult.Invalid;
+        }
+
+        // Check for multiple [FromForm] parameters
+        if (metas.Count(static m => m.HasFromForm) > 1)
+        {
+            diagnostics.Add(
+                EndpointDiagnostic.Create(DiagnosticDescriptors.MultipleFromFormParameters, method, method.Name));
             return ParameterBindingResult.Invalid;
         }
 
@@ -463,16 +484,23 @@ public sealed partial class ErrorOrEndpointGenerator
         var hasFromKeyedServices =
             HasParameterAttribute(parameter, knownSymbols.FromKeyedServices, FromKeyedServicesAttrName);
         var hasAsParameters = HasParameterAttribute(parameter, knownSymbols.AsParameters, AsParametersAttrName);
+        var hasFromForm = HasParameterAttribute(parameter, knownSymbols.FromForm, FromFormAttrName);
 
         var routeName = hasFromRoute ? TryGetFromRouteName(parameter, knownSymbols) ?? parameter.Name : parameter.Name;
         var queryName = hasFromQuery ? TryGetFromQueryName(parameter, knownSymbols) ?? parameter.Name : parameter.Name;
         var headerName =
             hasFromHeader ? TryGetFromHeaderName(parameter, knownSymbols) ?? parameter.Name : parameter.Name;
+        var formName = hasFromForm ? TryGetFromFormName(parameter, knownSymbols) ?? parameter.Name : parameter.Name;
         var keyedServiceKey =
             hasFromKeyedServices ? ExtractKeyFromKeyedServiceAttribute(parameter, knownSymbols) : null;
 
         var (isNullable, isNonNullableValueType) = GetParameterNullability(type, parameter.NullableAnnotation);
         var (isCollection, itemType, itemPrimitiveKind) = AnalyzeCollectionType(type);
+
+        // Detect IFormFile and IFormFileCollection
+        var isFormFile = typeFqn == "global::Microsoft.AspNetCore.Http.IFormFile";
+        var isFormFileCollection = typeFqn == "global::Microsoft.AspNetCore.Http.IFormFileCollection" ||
+                                   IsFormFileReadOnlyList(type);
 
         return new ParameterMeta(
             index, parameter, parameter.Name, typeFqn, TryGetRoutePrimitiveKind(type),
@@ -484,7 +512,21 @@ public sealed partial class ErrorOrEndpointGenerator
             typeFqn == "global::System.Threading.CancellationToken",
             typeFqn == "global::Microsoft.AspNetCore.Http.HttpContext",
             isNullable, isNonNullableValueType,
-            isCollection, itemType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), itemPrimitiveKind);
+            isCollection, itemType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), itemPrimitiveKind,
+            hasFromForm, formName, isFormFile, isFormFileCollection);
+    }
+
+    private static bool IsFormFileReadOnlyList(ITypeSymbol type)
+    {
+        if (type is not INamedTypeSymbol { IsGenericType: true } named)
+            return false;
+
+        var origin = named.ConstructedFrom.ToDisplayString();
+        if (origin != "System.Collections.Generic.IReadOnlyList<T>")
+            return false;
+
+        var itemFqn = named.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        return itemFqn == "global::Microsoft.AspNetCore.Http.IFormFile";
     }
 
     private static (bool IsCollection, ITypeSymbol? ItemType, RoutePrimitiveKind? Kind) AnalyzeCollectionType(
@@ -573,6 +615,13 @@ public sealed partial class ErrorOrEndpointGenerator
         return ExtractNameFromAttribute(attr);
     }
 
+    private static string? TryGetFromFormName(IParameterSymbol parameter, KnownSymbols knownSymbols)
+    {
+        var attr = parameter.GetAttributes()
+            .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, knownSymbols.FromForm));
+        return ExtractNameFromAttribute(attr);
+    }
+
     private static string? ExtractNameFromAttribute(AttributeData? attr)
     {
         if (attr is null) return null;
@@ -640,6 +689,11 @@ public sealed partial class ErrorOrEndpointGenerator
         if (meta.HasAsParameters)
             return ClassifyAsParameters(in meta, routeParameters, method, diagnostics, knownSymbols);
         if (meta.HasFromBody) return ParameterSuccess(in meta, EndpointParameterSource.Body);
+
+        // Explicit [FromForm]
+        if (meta.HasFromForm)
+            return ClassifyFromFormParameter(in meta, method, diagnostics, knownSymbols);
+
         if (meta.HasFromServices) return ParameterSuccess(in meta, EndpointParameterSource.Service);
         if (meta.HasFromKeyedServices)
         {
@@ -655,6 +709,12 @@ public sealed partial class ErrorOrEndpointGenerator
         // 2. Implicit Special Types
         if (meta.IsHttpContext) return ParameterSuccess(in meta, EndpointParameterSource.HttpContext);
         if (meta.IsCancellationToken) return ParameterSuccess(in meta, EndpointParameterSource.CancellationToken);
+
+        // Implicit form file types (auto-detected like HttpContext)
+        if (meta.IsFormFile)
+            return ParameterSuccess(in meta, EndpointParameterSource.FormFile, formName: meta.Name);
+        if (meta.IsFormFileCollection)
+            return ParameterSuccess(in meta, EndpointParameterSource.FormFiles, formName: meta.Name);
 
         // 3. Implicit Route (Name matches pattern)
         if (routeParameters.Contains(meta.Name)) return ClassifyImplicitRouteParameter(in meta, method, diagnostics);
@@ -729,6 +789,114 @@ public sealed partial class ErrorOrEndpointGenerator
             "[FromQuery] only supports primitives or collections of primitives (AOT limitation)");
     }
 
+    private static ParameterClassificationResult ClassifyFromFormParameter(
+        in ParameterMeta meta,
+        IMethodSymbol method,
+        ImmutableArray<EndpointDiagnostic>.Builder diagnostics,
+        KnownSymbols knownSymbols)
+    {
+        // Case 1: IFormFile with explicit [FromForm] (redundant but allowed)
+        if (meta.IsFormFile)
+            return ParameterSuccess(in meta, EndpointParameterSource.FormFile, formName: meta.FormName);
+
+        // Case 2: IFormFileCollection with explicit [FromForm] (redundant but allowed)
+        if (meta.IsFormFileCollection)
+            return ParameterSuccess(in meta, EndpointParameterSource.FormFiles, formName: meta.FormName);
+
+        // Case 3: Primitive type (string, int, etc.) - binds directly from form field
+        if (meta.RouteKind is not null)
+            return ParameterSuccess(in meta, EndpointParameterSource.Form, formName: meta.FormName);
+
+        // Case 4: Collection of primitives - binds from repeated form fields
+        if (meta.IsCollection && meta.CollectionItemPrimitiveKind is not null)
+            return ParameterSuccess(in meta, EndpointParameterSource.Form, formName: meta.FormName);
+
+        // Case 5: Complex type (DTO) - needs constructor analysis
+        return ClassifyFormDtoParameter(in meta, method, diagnostics, knownSymbols);
+    }
+
+    private static ParameterClassificationResult ClassifyFormDtoParameter(
+        in ParameterMeta meta,
+        IMethodSymbol method,
+        ImmutableArray<EndpointDiagnostic>.Builder diagnostics,
+        KnownSymbols knownSymbols)
+    {
+        // Validate DTO shape: must be a class or struct with public constructor
+        if (meta.Symbol.Type is not INamedTypeSymbol typeSymbol)
+        {
+            diagnostics.Add(EndpointDiagnostic.Create(
+                DiagnosticDescriptors.UnsupportedFormDtoShape, meta.Symbol, meta.Name, method.Name,
+                "[FromForm] DTO must be a class or struct type"));
+            return ParameterClassificationResult.Error;
+        }
+
+        // Find public constructor (prefer longest for greedy binding like [AsParameters])
+        var constructor = typeSymbol.Constructors
+            .Where(c => c.DeclaredAccessibility == Accessibility.Public && !c.IsStatic)
+            .OrderByDescending(c => c.Parameters.Length)
+            .FirstOrDefault();
+
+        if (constructor is null)
+        {
+            diagnostics.Add(EndpointDiagnostic.Create(
+                DiagnosticDescriptors.UnsupportedFormDtoShape, meta.Symbol, meta.Name, method.Name,
+                "[FromForm] DTO must have a public constructor"));
+            return ParameterClassificationResult.Error;
+        }
+
+        // Validate constructor parameters: must all be form-bindable
+        var children = ImmutableArray.CreateBuilder<EndpointParameter>();
+        foreach (var paramSymbol in constructor.Parameters)
+        {
+            var childMeta = CreateParameterMeta(children.Count, paramSymbol, knownSymbols, diagnostics);
+            var childFqn = childMeta.TypeFqn;
+
+            // Allow: primitives, collections of primitives, IFormFile, IFormFileCollection
+            if (childMeta.RouteKind is not null ||
+                (childMeta.IsCollection && childMeta.CollectionItemPrimitiveKind is not null) ||
+                childMeta.IsFormFile ||
+                childMeta.IsFormFileCollection)
+            {
+                EndpointParameterSource childSource;
+                if (childMeta.IsFormFile)
+                    childSource = EndpointParameterSource.FormFile;
+                else if (childMeta.IsFormFileCollection)
+                    childSource = EndpointParameterSource.FormFiles;
+                else
+                    childSource = EndpointParameterSource.Form;
+
+                children.Add(new EndpointParameter(
+                    childMeta.Name,
+                    childMeta.TypeFqn,
+                    childSource,
+                    childMeta.FormName,
+                    childMeta.IsNullable,
+                    childMeta.IsNonNullableValueType,
+                    childMeta.IsCollection,
+                    childMeta.CollectionItemTypeFqn,
+                    EquatableArray<EndpointParameter>.Empty));
+                continue;
+            }
+
+            // Nested DTO not supported for AOT safety
+            diagnostics.Add(EndpointDiagnostic.Create(
+                DiagnosticDescriptors.UnsupportedFormDtoShape, meta.Symbol, meta.Name, method.Name,
+                $"[FromForm] DTO property '{childMeta.Name}' has unsupported type '{childFqn}'. Only primitives, collections of primitives, IFormFile, and IFormFileCollection are allowed."));
+            return ParameterClassificationResult.Error;
+        }
+
+        return new ParameterClassificationResult(false, new EndpointParameter(
+            meta.Name,
+            meta.TypeFqn,
+            EndpointParameterSource.Form,
+            meta.FormName,
+            meta.IsNullable,
+            meta.IsNonNullableValueType,
+            false,
+            null,
+            new EquatableArray<EndpointParameter>(children.ToImmutable())));
+    }
+
     private static ParameterClassificationResult EmitParameterError(
         in ParameterMeta meta,
         IMethodSymbol method,
@@ -746,13 +914,14 @@ public sealed partial class ErrorOrEndpointGenerator
         string? routeName = null,
         string? headerName = null,
         string? queryName = null,
-        string? keyedServiceKey = null)
+        string? keyedServiceKey = null,
+        string? formName = null)
     {
         return new ParameterClassificationResult(false, new EndpointParameter(
             meta.Name,
             meta.TypeFqn,
             source,
-            routeName ?? queryName ?? headerName ?? keyedServiceKey,
+            routeName ?? queryName ?? headerName ?? keyedServiceKey ?? formName,
             meta.IsNullable,
             meta.IsNonNullableValueType,
             meta.IsCollection,
@@ -814,7 +983,10 @@ internal sealed record KnownSymbols(
     INamedTypeSymbol? FromQuery,
     INamedTypeSymbol? FromHeader,
     INamedTypeSymbol? AsParameters,
-    INamedTypeSymbol? Obsolete)
+    INamedTypeSymbol? Obsolete,
+    INamedTypeSymbol? FromForm,
+    INamedTypeSymbol? IFormFile,
+    INamedTypeSymbol? IFormFileCollection)
 {
     public static KnownSymbols Create(Compilation compilation)
     {
@@ -826,7 +998,10 @@ internal sealed record KnownSymbols(
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Mvc.FromQueryAttribute"),
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Mvc.FromHeaderAttribute"),
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Http.AsParametersAttribute"),
-            compilation.GetTypeByMetadataName("System.ObsoleteAttribute")
+            compilation.GetTypeByMetadataName("System.ObsoleteAttribute"),
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Mvc.FromFormAttribute"),
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Http.IFormFile"),
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Http.IFormFileCollection")
         );
     }
 }

@@ -32,6 +32,14 @@ internal static class DiagnosticDescriptors
         "Usage",
         DiagnosticSeverity.Error,
         true);
+
+    public static readonly DiagnosticDescriptor MultipleBodySources = new(
+        "EOE006",
+        "Multiple body sources",
+        "Endpoint '{0}' has both [FromBody] and [FromForm] parameters. Only one body source is allowed.",
+        "Usage",
+        DiagnosticSeverity.Error,
+        true);
 }
 
 #endregion

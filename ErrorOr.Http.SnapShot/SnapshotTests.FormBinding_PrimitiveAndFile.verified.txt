@@ -2,13 +2,13 @@
   Diagnostics: [
     {
       Location: : (8,35)-(8,41),
-      Message: Endpoint 'Upload' uses form binding but may receive non-form requests at runtime,
+      Message: Endpoint 'Upload' uses form binding. Ensure clients send multipart/form-data or application/x-www-form-urlencoded.,
       Severity: Info,
       WarningLevel: 1,
       Descriptor: {
         Id: EOE010,
         Title: Form content type required,
-        MessageFormat: Endpoint '{0}' uses form binding but may receive non-form requests at runtime,
+        MessageFormat: Endpoint '{0}' uses form binding. Ensure clients send multipart/form-data or application/x-www-form-urlencoded.,
         Category: Usage,
         DefaultSeverity: Info,
         IsEnabledByDefault: true
@@ -16,13 +16,13 @@
     },
     {
       Location: : (11,18)-(11,26),
-      Message: IFormFile parameter 'document' is non-nullable but file may be missing. Use IFormFile? for optional files.,
+      Message: IFormFile parameter 'document' is non-nullable but file uploads are optional. Use IFormFile? instead.,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: EOE009,
-        Title: IFormFile nullability,
-        MessageFormat: IFormFile parameter '{0}' is non-nullable but file may be missing. Use IFormFile? for optional files.,
+        Title: IFormFile should be nullable,
+        MessageFormat: IFormFile parameter '{0}' is non-nullable but file uploads are optional. Use IFormFile? instead.,
         Category: Usage,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true

@@ -1201,6 +1201,10 @@ public sealed partial class ErrorOrEndpointGenerator
         if (meta.IsFormFileCollection)
             return ParameterSuccess(in meta, EndpointParameterSource.FormFiles, formName: meta.FormName);
 
+        // IFormCollection with [FromForm] binds to the raw form data
+        if (meta.IsFormCollection)
+            return ParameterSuccess(in meta, EndpointParameterSource.FormCollection, formName: meta.FormName);
+
         if (meta.RouteKind is not null)
             return ParameterSuccess(in meta, EndpointParameterSource.Form, formName: meta.FormName);
 

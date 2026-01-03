@@ -791,6 +791,17 @@ public class EndpointGeneratorTests
                                                  public record SearchRequest(string Query);
                                                  """;
 
+    private const string RouteConstraintMismatchSource = """
+                                                         using ErrorOr;
+                                                         using ErrorOr.Http;
+
+                                                         public static class Endpoints
+                                                         {
+                                                             [Get("/items/{id:guid}")]
+                                                             public static ErrorOr<string> GetItem(int id) => "ok";
+                                                         }
+                                                         """;
+
     [Fact]
     public Task NonStaticHandler_ReportsEOE002()
     {
@@ -826,6 +837,10 @@ public class EndpointGeneratorTests
             GeneratorTestExtensions.Diagnostic("EOE020", DiagnosticSeverity.Warning));
     }
 
-    // Note: EOE023 (RouteConstraintTypeMismatch) validation is defined but not wired up yet.
-    // The infrastructure exists in RouteValidator.ValidateConstraintTypeMatch but isn't called.
+    [Fact]
+    public Task RouteConstraintMismatch_ReportsEOE023()
+    {
+        return RouteConstraintMismatchSource.ShouldHaveDiagnostics<ErrorOrEndpointGenerator>(
+            GeneratorTestExtensions.Diagnostic("EOE023", DiagnosticSeverity.Warning));
+    }
 }

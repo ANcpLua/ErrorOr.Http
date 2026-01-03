@@ -221,6 +221,32 @@ public sealed partial class ErrorOrEndpointGenerator : IIncrementalGenerator
                 diagnostics.Add(diag);
             }
 
+            // EOE023: Validate route constraint types match parameter types
+            foreach (var routeParam in routeParams)
+            {
+                if (routeParam.Constraint is null)
+                    continue;
+
+                // Find the bound method parameter for this route param
+                var boundParam = parameterResult.Parameters
+                    .FirstOrDefault(p => p.Source == EndpointParameterSource.Route &&
+                        string.Equals(p.KeyName ?? p.Name, routeParam.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (boundParam.Name is null)
+                    continue; // Not bound, already reported by EOE015
+
+                // Get the actual ITypeSymbol from method parameters
+                var methodParam = method.Parameters
+                    .FirstOrDefault(p => string.Equals(p.Name, boundParam.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (methodParam is null)
+                    continue;
+
+                var constraintDiag = RouteValidator.ValidateConstraintTypeMatch(routeParam, methodParam.Type, method);
+                if (constraintDiag is not null)
+                    diagnostics.Add(constraintDiag.Value);
+            }
+
             // EOE020: Body on read-only method
             var hasBody = parameterResult.Parameters.Any(p => p.Source == EndpointParameterSource.Body);
             if (hasBody && IsReadOnlyHttpMethod(httpMethod))

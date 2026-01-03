@@ -352,12 +352,13 @@ public sealed partial class ErrorOrEndpointGenerator : IIncrementalGenerator
             namespace ErrorOr.Http
             {
                 /// <summary>
-                /// Base class for HTTP endpoint attributes.
+                /// HTTP endpoint attribute. Use directly for less common methods (OPTIONS, HEAD, etc.)
+                /// or use convenience attributes like [Get], [Post], [Put], [Delete], [Patch].
                 /// </summary>
                 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-                public abstract class ErrorOrEndpointAttribute : Attribute
+                public class ErrorOrEndpointAttribute : Attribute
                 {
-                    protected ErrorOrEndpointAttribute(string httpMethod, string pattern = "/")
+                    public ErrorOrEndpointAttribute(string httpMethod, string pattern = "/")
                     {
                         HttpMethod = httpMethod;
                         Pattern = pattern;

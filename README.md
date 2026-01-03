@@ -224,21 +224,58 @@ The generator creates `ErrorOrJsonContext.suggested.cs` in `obj/Generated/` with
 
 ## Diagnostics
 
-| Code   | Severity | Description                                                |
-|--------|----------|------------------------------------------------------------|
-| EOE003 | Error    | Unsupported parameter type                                 |
-| EOE004 | Error    | Ambiguous parameter requires explicit binding attribute    |
-| EOE005 | Error    | Multiple `[FromBody]` parameters                           |
-| EOE006 | Error    | Multiple body sources (`[FromBody]`, `[FromForm]`, Stream) |
-| EOE007 | Error    | Multiple `[FromForm]` DTO parameters                       |
-| EOE008 | Error    | Unsupported `[FromForm]` DTO shape                         |
-| EOE009 | Warning  | Non-nullable `IFormFile` may be missing at runtime         |
-| EOE010 | Info     | Form endpoint may receive non-form requests                |
-| EOE011 | Error    | Multiple `[FromForm]` complex type parameters              |
-| EOE013 | Error    | `IFormCollection` requires explicit `[FromForm]`           |
-| EOE014 | Error    | Type cannot be form-bound                                  |
-| EOE021 | Warning  | Error type not documented in OpenAPI metadata              |
-| EOE022 | Warning  | Type not registered in `JsonSerializerContext`             |
+### Handler Validation
+
+| Code   | Severity | Description                         |
+|--------|----------|-------------------------------------|
+| EOE001 | Error    | Handler doesn't return `ErrorOr<T>` |
+| EOE002 | Error    | Handler method is not static        |
+
+### Parameter Binding
+
+| Code   | Severity | Description                                 |
+|--------|----------|---------------------------------------------|
+| EOE003 | Error    | Parameter cannot be bound                   |
+| EOE004 | Error    | Parameter needs explicit `[FromX]` attribute |
+| EOE005 | Error    | Multiple `[FromBody]` parameters            |
+
+### Body Source Conflicts
+
+| Code   | Severity | Description                          |
+|--------|----------|--------------------------------------|
+| EOE006 | Error    | Mix of body/form/stream sources      |
+| EOE007 | Error    | Multiple `[FromForm]` DTOs           |
+| EOE008 | Error    | Form DTO missing required constructor |
+
+### Form Binding
+
+| Code   | Severity | Description                                 |
+|--------|----------|---------------------------------------------|
+| EOE009 | Warning  | Non-nullable `IFormFile`                    |
+| EOE010 | Info     | Endpoint uses form binding                  |
+| EOE013 | Error    | `IFormCollection` without `[FromForm]`      |
+| EOE014 | Error    | Invalid form parameter type                 |
+
+### Route Validation
+
+| Code   | Severity | Description                                           |
+|--------|----------|-------------------------------------------------------|
+| EOE015 | Error    | Route `{x}` has no matching method parameter          |
+| EOE016 | Error    | Same route registered by multiple handlers            |
+| EOE017 | Error    | Empty pattern, mismatched braces, or empty `{}`       |
+| EOE018 | Warning  | Potential route/parameter name mismatch               |
+| EOE019 | Warning  | Multiple endpoints with same OpenAPI operation ID     |
+| EOE020 | Warning  | `[FromBody]` on GET/HEAD/DELETE/OPTIONS               |
+
+### OpenAPI & AOT
+
+| Code   | Severity | Description                                 |
+|--------|----------|---------------------------------------------|
+| EOE021 | Warning  | Error type not in OpenAPI metadata          |
+| EOE022 | Warning  | Type missing from `[JsonSerializable]`      |
+| EOE023 | Warning  | Route constraint type mismatch              |
+| EOE024 | Hidden   | Primitive doesn't need JSON registration    |
+| EOE025 | Hidden   | SSE errors can't be returned as ProblemDetails |
 
 ## Requirements
 

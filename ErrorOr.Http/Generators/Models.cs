@@ -24,26 +24,14 @@ internal enum EndpointParameterSource
 
 /// <summary>
 ///     Represents the custom binding method detected on a parameter type.
-///     Used for types with static TryParse, BindAsync, or IBindableFromHttpContext implementation.
 /// </summary>
 internal enum CustomBindingMethod
 {
-    /// <summary>No custom binding method detected.</summary>
     None,
-
-    /// <summary>static bool TryParse(string?, out T)</summary>
     TryParse,
-
-    /// <summary>static bool TryParse(string?, IFormatProvider?, out T)</summary>
     TryParseWithFormat,
-
-    /// <summary>static ValueTask&lt;T?&gt; BindAsync(HttpContext)</summary>
     BindAsync,
-
-    /// <summary>static ValueTask&lt;T?&gt; BindAsync(HttpContext, ParameterInfo)</summary>
     BindAsyncWithParam,
-
-    /// <summary>IBindableFromHttpContext&lt;T&gt; interface implementation</summary>
     Bindable
 }
 
@@ -79,10 +67,9 @@ internal readonly record struct EndpointData(
     EquatableArray<EndpointDescriptor> Descriptors,
     EquatableArray<EndpointDiagnostic> Diagnostics)
 {
-    public static EndpointData Empty
-    {
-        get => new(EquatableArray<EndpointDescriptor>.Empty, EquatableArray<EndpointDiagnostic>.Empty);
-    }
+    public static EndpointData Empty => new(
+        EquatableArray<EndpointDescriptor>.Empty,
+        EquatableArray<EndpointDiagnostic>.Empty);
 }
 
 internal readonly record struct ParameterMeta(

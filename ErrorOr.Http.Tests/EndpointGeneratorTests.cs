@@ -1,5 +1,6 @@
 using ANcpLua.Roslyn.Utilities.Testing;
 using ErrorOr.Http.Generators;
+using Microsoft.CodeAnalysis;
 using Xunit;
 
 namespace ErrorOr.Http.Tests;
@@ -58,8 +59,10 @@ public class EndpointGeneratorTests
                                                     public static class Endpoints
                                                     {
                                                         [Get( "/a")]
+                                                        public static ErrorOr<string> GetA() => "ok";
+
                                                         [Get( "/b")]
-                                                        public static ErrorOr<string> Get() => "ok";
+                                                        public static ErrorOr<string> GetB() => "ok";
                                                     }
                                                     """;
 
@@ -722,4 +725,107 @@ public class EndpointGeneratorTests
             "await global::PagingData.BindAsync(ctx)",
             false);
     }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // Diagnostic Tests (EOE002, EOE015, EOE016, EOE017, EOE020, EOE023)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private const string NonStaticHandlerSource = """
+                                                  using ErrorOr;
+                                                  using ErrorOr.Http;
+
+                                                  public class Endpoints
+                                                  {
+                                                      [Get("/test")]
+                                                      public ErrorOr<string> GetTest() => "ok";
+                                                  }
+                                                  """;
+
+    private const string RouteParameterNotBoundSource = """
+                                                        using ErrorOr;
+                                                        using ErrorOr.Http;
+
+                                                        public static class Endpoints
+                                                        {
+                                                            [Get("/users/{id}")]
+                                                            public static ErrorOr<string> GetUser() => "ok";
+                                                        }
+                                                        """;
+
+    private const string DuplicateRouteSource = """
+                                                using ErrorOr;
+                                                using ErrorOr.Http;
+
+                                                public static class Endpoints
+                                                {
+                                                    [Get("/duplicate")]
+                                                    public static ErrorOr<string> First() => "first";
+
+                                                    [Get("/duplicate")]
+                                                    public static ErrorOr<string> Second() => "second";
+                                                }
+                                                """;
+
+    private const string InvalidRoutePatternSource = """
+                                                     using ErrorOr;
+                                                     using ErrorOr.Http;
+
+                                                     public static class Endpoints
+                                                     {
+                                                         [Get("/users/{}")]
+                                                         public static ErrorOr<string> GetUser() => "ok";
+                                                     }
+                                                     """;
+
+    private const string BodyOnGetMethodSource = """
+                                                 using ErrorOr;
+                                                 using ErrorOr.Http;
+                                                 using Microsoft.AspNetCore.Mvc;
+
+                                                 public static class Endpoints
+                                                 {
+                                                     [Get("/search")]
+                                                     public static ErrorOr<string> Search([FromBody] SearchRequest request) => "ok";
+                                                 }
+
+                                                 public record SearchRequest(string Query);
+                                                 """;
+
+    [Fact]
+    public Task NonStaticHandler_ReportsEOE002()
+    {
+        return NonStaticHandlerSource.ShouldHaveDiagnostics<ErrorOrEndpointGenerator>(
+            GeneratorTestExtensions.Diagnostic("EOE002"));
+    }
+
+    [Fact]
+    public Task RouteParameterNotBound_ReportsEOE015()
+    {
+        return RouteParameterNotBoundSource.ShouldHaveDiagnostics<ErrorOrEndpointGenerator>(
+            GeneratorTestExtensions.Diagnostic("EOE015"));
+    }
+
+    [Fact]
+    public Task DuplicateRoute_ReportsEOE016()
+    {
+        return DuplicateRouteSource.ShouldHaveDiagnostics<ErrorOrEndpointGenerator>(
+            GeneratorTestExtensions.Diagnostic("EOE016"));
+    }
+
+    [Fact]
+    public Task InvalidRoutePattern_ReportsEOE017()
+    {
+        return InvalidRoutePatternSource.ShouldHaveDiagnostics<ErrorOrEndpointGenerator>(
+            GeneratorTestExtensions.Diagnostic("EOE017"));
+    }
+
+    [Fact]
+    public Task BodyOnGetMethod_ReportsEOE020()
+    {
+        return BodyOnGetMethodSource.ShouldHaveDiagnostics<ErrorOrEndpointGenerator>(
+            GeneratorTestExtensions.Diagnostic("EOE020", DiagnosticSeverity.Warning));
+    }
+
+    // Note: EOE023 (RouteConstraintTypeMismatch) validation is defined but not wired up yet.
+    // The infrastructure exists in RouteValidator.ValidateConstraintTypeMatch but isn't called.
 }

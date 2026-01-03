@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: Multiple endpoints would have the same operation ID 'global::Endpoints_GetUser'. Use [EndpointName] to disambiguate for OpenAPI.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: EOE019,
+        Title: Endpoint name collision,
+        MessageFormat: Multiple endpoints would have the same operation ID '{0}'. Use [EndpointName] to disambiguate for OpenAPI.,
+        Category: Usage,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

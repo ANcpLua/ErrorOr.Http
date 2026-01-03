@@ -6,17 +6,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace ErrorOr.Http.Generators;
 
 /// <summary>
-///     EOE021-EOE022: Analyzer partial for OpenAPI & AOT validation.
-///     Runs during source generation to detect:
-///     - EOE021: Undocumented error responses (error paths not in OpenAPI metadata)
-///     - EOE022: Types not registered in JsonSerializerContext (AOT failures)
+///     Analyzer partial for OpenAPI & AOT validation (EOE021-EOE022).
 /// </summary>
 public sealed partial class ErrorOrEndpointGenerator
 {
-    /// <summary>
-    ///     Analyzes endpoints and user-defined JsonSerializerContext classes
-    ///     to detect types that won't serialize in NativeAOT scenarios.
-    /// </summary>
     private static void AnalyzeJsonContextCoverage(
         SourceProductionContext spc,
         ImmutableArray<EndpointDescriptor> endpoints,
@@ -31,10 +24,7 @@ public sealed partial class ErrorOrEndpointGenerator
         foreach (var ep in endpoints)
         {
             if (!string.IsNullOrEmpty(ep.SuccessTypeFqn) &&
-                ep.SuccessTypeFqn != "global::ErrorOr.Deleted" &&
-                ep.SuccessTypeFqn != "global::ErrorOr.Updated" &&
-                ep.SuccessTypeFqn != "global::ErrorOr.Created" &&
-                ep.SuccessTypeFqn != "global::ErrorOr.Success")
+                !IsNoContentType(ep.SuccessTypeFqn))
             {
                 if (neededTypes.Add(ep.SuccessTypeFqn))
                     typeToEndpoint[ep.SuccessTypeFqn] = ep.HandlerMethodName;
@@ -65,8 +55,10 @@ public sealed partial class ErrorOrEndpointGenerator
 
         foreach (var neededType in neededTypes)
         {
-            var isRegistered = registeredTypes.Any(rt => TypeNamesMatch(neededType, rt));
+            if (IsPrimitiveJsonType(neededType))
+                continue;
 
+            var isRegistered = registeredTypes.Any(rt => TypeNamesMatch(neededType, rt));
             if (!isRegistered)
             {
                 var displayType = neededType.Replace("global::", "");
@@ -83,10 +75,17 @@ public sealed partial class ErrorOrEndpointGenerator
         }
     }
 
-    /// <summary>
-    ///     Checks if two type names refer to the same type.
-    ///     Handles differences in global:: prefix and short vs full names.
-    /// </summary>
+    private static bool IsPrimitiveJsonType(string typeFqn)
+    {
+        var normalized = typeFqn.Replace("global::", "");
+        return normalized is "System.String" or "string" or
+            "System.Int32" or "int" or
+            "System.Int64" or "long" or
+            "System.Boolean" or "bool" or
+            "System.Double" or "double" or
+            "System.Decimal" or "decimal";
+    }
+
     private static bool TypeNamesMatch(string needed, string registered)
     {
         var normalizedNeeded = needed.Replace("global::", "").Trim();
@@ -98,44 +97,35 @@ public sealed partial class ErrorOrEndpointGenerator
         var neededShort = GetShortTypeName(normalizedNeeded);
         var registeredShort = GetShortTypeName(normalizedRegistered);
 
-        if (neededShort == registeredShort)
-            return true;
-
-        if (normalizedNeeded.EndsWith(registeredShort) || normalizedRegistered.EndsWith(neededShort))
-            return true;
-
-        return false;
+        return neededShort == registeredShort ||
+               normalizedNeeded.EndsWith(registeredShort) ||
+               normalizedRegistered.EndsWith(neededShort);
     }
 
     private static string GetShortTypeName(string typeName)
     {
         var isArray = typeName.EndsWith("[]");
         var baseName = isArray ? typeName[..^2] : typeName;
-
         var lastDot = baseName.LastIndexOf('.');
         var shortName = lastDot >= 0 ? baseName[(lastDot + 1)..] : baseName;
-
         return isArray ? shortName + "[]" : shortName;
+    }
+
+    private static bool IsNoContentType(string typeFqn)
+    {
+        return typeFqn.EndsWith("Deleted", StringComparison.Ordinal) ||
+               typeFqn.EndsWith("Success", StringComparison.Ordinal) ||
+               typeFqn.EndsWith("Created", StringComparison.Ordinal) ||
+               typeFqn.EndsWith("Updated", StringComparison.Ordinal);
     }
 }
 
-/// <summary>
-///     Information about a user-defined JsonSerializerContext.
-/// </summary>
 internal readonly record struct JsonContextInfo(
     string ClassName,
     EquatableArray<string> SerializableTypes);
 
-/// <summary>
-///     Provider for finding JsonSerializerContext classes.
-/// </summary>
 internal static class JsonContextProvider
 {
-    /// <summary>
-    ///     Creates an incremental provider that finds all user-defined JsonSerializerContext classes.
-    /// </summary>
-    // Suppress EPS06: IncrementalValuesProvider is a struct with fluent API designed for method chaining
-#pragma warning disable EPS06
     public static IncrementalValuesProvider<JsonContextInfo> Create(IncrementalGeneratorInitializationContext context)
     {
         return context.SyntaxProvider
@@ -145,7 +135,6 @@ internal static class JsonContextProvider
             .Where(static info => info.HasValue)
             .Select(static (info, _) => info!.Value);
     }
-#pragma warning restore EPS06
 
     private static JsonContextInfo? TransformJsonContext(GeneratorSyntaxContext ctx)
     {
@@ -191,7 +180,6 @@ internal static class JsonContextProvider
                 return true;
             current = current.BaseType;
         }
-
         return false;
     }
 }

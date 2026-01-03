@@ -1,4 +1,4 @@
-# ErrorOr.Http v2.0 Breaking Changes
+    # ErrorOr.Http v2.0 Breaking Changes
 
 ## New Diagnostics Added
 

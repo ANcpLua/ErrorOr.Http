@@ -79,16 +79,6 @@ public static ErrorOr<Updated> Patch(Guid id, [FromBody] ResourcePatch p) => ...
 public static ErrorOr<Deleted> Delete(Guid id) => ...;
 ```
 
-For less common HTTP methods:
-
-```csharp
-[ErrorOrEndpoint("OPTIONS", "/resources")]
-public static ErrorOr<string[]> Options() => new[] { "GET", "POST" };
-
-[ErrorOrEndpoint("HEAD", "/resources/{id}")]
-public static ErrorOr<Success> Head(Guid id) => Result.Success;
-```
-
 ### Parameter Binding
 
 Route parameters are inferred from the template. All other sources require explicit attributes.

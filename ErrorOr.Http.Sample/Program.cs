@@ -20,11 +20,11 @@ app.MapErrorOrEndpoints();
 
 TodoEndpoints.SampleTodos =
 [
-    new Todo(1, "Walk the dog"),
-    new Todo(2, "Do the dishes", DateOnly.FromDateTime(DateTime.Now)),
-    new Todo(3, "Do the laundry", DateOnly.FromDateTime(DateTime.Now.AddDays(1))),
-    new Todo(4, "Clean the bathroom"),
-    new Todo(5, "Clean the car", DateOnly.FromDateTime(DateTime.Now.AddDays(2)))
+    new Todo(Guid.NewGuid(), "Walk the dog"),
+    new Todo(Guid.NewGuid(), "Do the dishes", DateOnly.FromDateTime(DateTime.Now)),
+    new Todo(Guid.NewGuid(), "Do the laundry", DateOnly.FromDateTime(DateTime.Now.AddDays(1))),
+    new Todo(Guid.NewGuid(), "Clean the bathroom"),
+    new Todo(Guid.NewGuid(), "Clean the car", DateOnly.FromDateTime(DateTime.Now.AddDays(2)))
 ];
 
 app.Run();
@@ -40,7 +40,7 @@ internal partial class TodoJsonContext : JsonSerializerContext
 
 namespace ErrorOr.Http.Sample
 {
-    public record Todo(int Id, string? Title, DateOnly? DueBy = null, bool IsComplete = false);
+    public record Todo(Guid Id, string? Title, DateOnly? DueBy = null, bool IsComplete = false);
 
     public static class TodoEndpoints
     {
@@ -53,7 +53,7 @@ namespace ErrorOr.Http.Sample
         }
 
         [Get("/{id}")]
-        public static ErrorOr<Todo> GetById(int id)
+        public static ErrorOr<Todo> GetById(Guid id)
         {
             return SampleTodos.FirstOrDefault(t => t.Id == id) is { } todo
                 ? todo
@@ -66,11 +66,11 @@ namespace ErrorOr.Http.Sample
             if (string.IsNullOrWhiteSpace(todo.Title))
                 return Error.Validation("Todo.InvalidTitle", "Title is required");
 
-            return todo with { Id = SampleTodos.Length + 1 };
+            return todo with { Id = Guid.NewGuid() };
         }
 
         [Delete("/{id}")]
-        public static ErrorOr<Deleted> Delete(int id)
+        public static ErrorOr<Deleted> Delete(Guid id)
         {
             if (SampleTodos.All(t => t.Id != id))
                 return Error.NotFound("Todo.NotFound", $"Todo with id {id} not found");
